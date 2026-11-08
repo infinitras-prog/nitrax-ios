@@ -46,7 +46,9 @@ enum SiriHilfe {
     static func agent(_ auftrag: String) async throws -> String {
         let c = try client()
         var id = Gemeinsam.defaults.string(forKey: "siri_chat")
-        if id == nil || (try? await c.get("/api/chats/\(id!)", JSONWert.self)) == nil {
+        var gueltig = false
+        if let vorhanden = id { gueltig = (try? await c.get("/api/chats/\(vorhanden)", JSONWert.self)) != nil }
+        if !gueltig {
             id = try await c.post("/api/chats", ["art": "werkstatt"])["id"]?.text
             Gemeinsam.defaults.set(id, forKey: "siri_chat")
         }

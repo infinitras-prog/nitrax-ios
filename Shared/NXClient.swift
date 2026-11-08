@@ -68,7 +68,9 @@ final class NXClient: @unchecked Sendable {
     private func senden(_ pfad: String, methode: String, body: Data?, typ: String?, zeit: TimeInterval? = nil) async throws -> Data {
         var versuche = 0
         while true {
-            guard let b = basis ?? (await basisFinden()) else { throw NXFehler.keineVerbindung }
+            var gefunden = basis
+            if gefunden == nil { gefunden = await basisFinden() }
+            guard let b = gefunden else { throw NXFehler.keineVerbindung }
             var r = anfrage(b, pfad, methode: methode)
             if let zeit { r.timeoutInterval = zeit }
             if let body { r.httpBody = body }
@@ -120,7 +122,9 @@ final class NXClient: @unchecked Sendable {
         AsyncThrowingStream { fortsetzung in
             let aufgabe = Task {
                 do {
-                    guard let b = self.basis ?? (await self.basisFinden()) else { throw NXFehler.keineVerbindung }
+                    var gefunden = self.basis
+                    if gefunden == nil { gefunden = await self.basisFinden() }
+                    guard let b = gefunden else { throw NXFehler.keineVerbindung }
                     var r = self.anfrage(b, pfad, methode: "POST")
                     r.httpBody = try JSONSerialization.data(withJSONObject: body)
                     r.setValue("application/json", forHTTPHeaderField: "Content-Type")
