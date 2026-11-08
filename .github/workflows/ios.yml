@@ -76,18 +76,18 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/keys"
           printf '%s\n' "$P" > "$RUNNER_TEMP/keys/AuthKey.p8"
-      - name: Archivieren (automatisch signiert)
+          echo "ASC_KEY_PATH=$RUNNER_TEMP/keys/AuthKey.p8" >> "$GITHUB_ENV"
+      - name: Signatur einrichten (Zertifikat + App-Store-Profile über die API, kein Gerät nötig)
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          python3 -m pip install --quiet --break-system-packages "pyjwt[crypto]" || python3 -m pip install --quiet "pyjwt[crypto]"
+          python3 ci/signieren.py einrichten
+      - name: Archivieren (manuell signiert)
         run: |
           set -o pipefail
-          xcodebuild -project NitraX.xcodeproj -scheme NitraX -configuration Release \
-            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/NitraX.xcarchive" \
-            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
-            archive | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          xcodebuild -project NitraX.xcodeproj -scheme NitraX -configuration Release             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/NitraX.xcarchive"             CURRENT_PROJECT_VERSION=${{ github.run_number }}             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution"             OTHER_CODE_SIGN_FLAGS="--keychain $NX_KEYCHAIN"             NX_PROFIL_APP="$NX_PROFIL_APP" NX_PROFIL_WIDGET="$NX_PROFIL_WIDGET" NX_PROFIL_TEILEN="$NX_PROFIL_TEILEN"             archive | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
           grep -q "ARCHIVE SUCCEEDED" archive.log
       - name: Export-Einstellungen
         run: |
@@ -97,8 +97,14 @@ jobs:
           <plist version="1.0"><dict>
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
             <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
+            <key>provisioningProfiles</key><dict>
+              <key>de.infinitras.nitrax</key><string>${NX_PROFIL_APP}</string>
+              <key>de.infinitras.nitrax.widget</key><string>${NX_PROFIL_WIDGET}</string>
+              <key>de.infinitras.nitrax.teilen</key><string>${NX_PROFIL_TEILEN}</string>
+            </dict>
             <key>manageAppVersionAndBuildNumber</key><false/>
             <key>uploadSymbols</key><true/>
           </dict></plist>
@@ -106,12 +112,8 @@ jobs:
       - name: Zu TestFlight hochladen
         run: |
           set -o pipefail
-          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/NitraX.xcarchive" \
-            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
-            -allowProvisioningUpdates \
-            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
-            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
-            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" | tee export.log
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/NitraX.xcarchive"             -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export"             -allowProvisioningUpdates             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8"             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}"             -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" | tee export.log
+          grep -qE "EXPORT SUCCEEDED|Upload succeeded|Uploaded" export.log
       - name: Protokolle bei Fehler
         if: failure()
         uses: actions/upload-artifact@v4
@@ -122,4 +124,6 @@ jobs:
             export.log
       - name: Schlüssel löschen
         if: always()
-        run: rm -rf "$RUNNER_TEMP/keys"
+        run: |
+          python3 ci/signieren.py aufraeumen || true
+          rm -rf "$RUNNER_TEMP/keys"

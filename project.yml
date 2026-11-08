@@ -55,12 +55,18 @@ targets:
       path: NitraX/NitraX.entitlements
       properties:
         com.apple.security.application-groups: [group.de.infinitras.nitrax]
-        aps-environment: development
+        aps-environment: $(APS_ENVIRONMENT)
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        PROVISIONING_PROFILE_SPECIFIER: $(NX_PROFIL_APP)
+      configs:
+        Debug:
+          APS_ENVIRONMENT: development
+        Release:
+          APS_ENVIRONMENT: production
     dependencies:
       - target: NitraXWidget
       - target: NitraXTeilen
@@ -88,6 +94,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax.widget
+        PROVISIONING_PROFILE_SPECIFIER: $(NX_PROFIL_WIDGET)
         SKIP_INSTALL: YES
   NitraXTeilen:
     type: app-extension
@@ -117,6 +124,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax.teilen
+        PROVISIONING_PROFILE_SPECIFIER: $(NX_PROFIL_TEILEN)
         SKIP_INSTALL: YES
 schemes:
   NitraX:
