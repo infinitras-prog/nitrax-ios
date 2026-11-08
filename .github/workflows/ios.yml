@@ -82,6 +82,7 @@ jobs:
           xcodebuild -project NitraX.xcodeproj -scheme NitraX -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/NitraX.xcarchive" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
             -allowProvisioningUpdates \
             -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
             -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
