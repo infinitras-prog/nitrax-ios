@@ -30,6 +30,7 @@ struct FeldEditor: View {
     @State private var fotos: [PhotosPickerItem] = []
     @State private var film: PhotosPickerItem?
     @State private var laedtHoch = false
+    @State private var prozent: Double?
     @State private var kamera = false
     @State private var ergebnisse = false
     @State private var tonDatei = false
@@ -111,7 +112,16 @@ struct FeldEditor: View {
                 TextField(feld.platz ?? "", text: textBindung)
             }
         }
-        .overlay(alignment: .topTrailing) { if laedtHoch { ProgressView().controlSize(.small) } }
+        .overlay(alignment: .topTrailing) {
+            if laedtHoch {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(prozent.map { $0 >= 0.999 ? "PC verarbeitet …" : "Hochladen \(Int($0 * 100)) %" } ?? "Bitte warten …")
+                        .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 8).padding(.vertical, 4).background(.ultraThinMaterial, in: Capsule())
+            }
+        }
         .alert("Hinweis", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(fehler ?? "") }
@@ -240,14 +250,19 @@ struct FeldEditor: View {
         if feld.art == "bilder" { var l = bildListe; l.remove(at: i); wert = .liste(l) } else { wert = nil }
     }
 
+    /// 📤 Upload-Fortschritt fürs Feld und für den Starten-Knopf
+    private var melder: @Sendable (Double) -> Void {
+        { p in Task { @MainActor in prozent = p; UploadStand.shared.prozent = p } }
+    }
+
     private func bildHoch(_ daten: Data) async {
         guard let c = studio.client else { return }
         // HEIC & Co. als JPEG (der PC liest alles, JPEG ist aber klein und überall bekannt)
         let jpeg = UIImage(data: daten)?.jpegData(compressionQuality: 0.92) ?? daten
-        laedtHoch = true
-        defer { laedtHoch = false }
+        laedtHoch = true; prozent = nil; UploadStand.shared.laeuft += 1
+        defer { laedtHoch = false; prozent = nil; UploadStand.shared.laeuft -= 1 }
         do {
-            let r = try await c.hochladen("/api/upload", daten: jpeg, dateiname: "iphone.jpg", typ: "image/jpeg")
+            let r = try await c.hochladen("/api/upload", daten: jpeg, dateiname: "iphone.jpg", typ: "image/jpeg", fortschritt: melder)
             guard let n = r["name"]?.text else { throw NXFehler.antwort }
             dazu(.objekt(["quelle": .text("upload"), "name": .text(n)]))
         } catch { fehler = error.localizedDescription }
@@ -255,12 +270,12 @@ struct FeldEditor: View {
 
     private func videoHoch(_ item: PhotosPickerItem) async {
         guard let c = studio.client else { return }
-        laedtHoch = true
-        defer { laedtHoch = false; film = nil }
+        laedtHoch = true; prozent = nil; UploadStand.shared.laeuft += 1
+        defer { laedtHoch = false; prozent = nil; UploadStand.shared.laeuft -= 1; film = nil }
         do {
             guard let f = try await item.loadTransferable(type: FilmDatei.self) else { throw NXFehler.antwort }
             let d = try Data(contentsOf: f.url)
-            let r = try await c.hochladen("/api/upload-video", daten: d, dateiname: f.url.lastPathComponent, typ: "video/quicktime")
+            let r = try await c.hochladen("/api/upload-video", daten: d, dateiname: f.url.lastPathComponent, typ: "video/quicktime", fortschritt: melder)
             try? FileManager.default.removeItem(at: f.url)
             guard let id = r["id"]?.text else { throw NXFehler.antwort }
             wert = .objekt(["id": .text(id), "original": r["original"] ?? .text("Video"), "duration": r["duration"] ?? .nichts])
@@ -269,13 +284,13 @@ struct FeldEditor: View {
 
     private func audioHoch(_ url: URL, original: String? = nil) async {
         guard let c = studio.client else { return }
-        laedtHoch = true
-        defer { laedtHoch = false }
+        laedtHoch = true; prozent = nil; UploadStand.shared.laeuft += 1
+        defer { laedtHoch = false; prozent = nil; UploadStand.shared.laeuft -= 1 }
         let zugriff = url.startAccessingSecurityScopedResource()
         defer { if zugriff { url.stopAccessingSecurityScopedResource() } }
         do {
             let d = try Data(contentsOf: url)
-            let r = try await c.hochladen("/api/upload-audio", daten: d, dateiname: url.lastPathComponent, typ: "audio/" + (url.pathExtension.isEmpty ? "wav" : url.pathExtension))
+            let r = try await c.hochladen("/api/upload-audio", daten: d, dateiname: url.lastPathComponent, typ: "audio/" + (url.pathExtension.isEmpty ? "wav" : url.pathExtension), fortschritt: melder)
             guard let n = r["name"]?.text else { throw NXFehler.antwort }
             wert = .objekt(["quelle": .text("upload"), "name": .text(n), "original": .text(original ?? url.lastPathComponent)])
         } catch { fehler = error.localizedDescription }
@@ -510,4 +525,13 @@ struct Aufnehmer: View {
         let dauer = Date().timeIntervalSince(start)
         if dauer >= 2 { fertig(r.url, dauer) }
     }
+}
+
+
+/// 📤 laufende Uploads im Formular (damit »Starten« sagen kann, worauf es wartet)
+@MainActor
+final class UploadStand: ObservableObject {
+    static let shared = UploadStand()
+    @Published var laeuft = 0
+    @Published var prozent: Double?
 }

@@ -218,8 +218,9 @@ final class Studio: ObservableObject {
     private func widgetAuffrischen(_ s: StudioStand) {
         let schnapp = Schnappschuss.aus(s)
         schnapp.speichern()
-        let sig = s.auftraege.filter { $0.offen || $0.fertig }.prefix(12).map { "\($0.id)\($0.status)\(Int($0.progress / 10))" }.joined()
-        if sig != widgetZuletzt || Date().timeIntervalSince(widgetZeit) > 60 {
+        // App offen: Widget darf oft neu zeichnen (zählt nicht gegen das iOS-Budget) - jede 2 % bzw. alle 20 s
+        let sig = s.auftraege.filter { $0.offen || $0.fertig }.prefix(12).map { "\($0.id)\($0.status)\(Int($0.progress / 2))" }.joined()
+        if sig != widgetZuletzt || Date().timeIntervalSince(widgetZeit) > 20 {
             widgetZuletzt = sig
             widgetZeit = Date()
             WidgetCenter.shared.reloadAllTimelines()
@@ -246,6 +247,17 @@ final class Studio: ObservableObject {
 
     func abbrechen(_ a: Auftrag) async {
         await aktion { try await $0.post("/api/jobs/\(a.id)/cancel") }
+    }
+
+    /// 🗑 Auftrag samt Dateien löschen (am PC in den Papierkorb - wiederherstellbar)
+    func loeschen(_ a: Auftrag) async {
+        guard let c = client else { return }
+        do {
+            _ = try await c.post("/api/jobs/\(a.id)/delete-files")
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            meldung = "🗑 Gelöscht (am PC im Papierkorb)"
+            await aktualisieren()
+        } catch { meldung = error.localizedDescription }
     }
 
     func fortsetzen(_ a: Auftrag) async {

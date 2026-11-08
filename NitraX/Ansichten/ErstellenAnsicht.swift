@@ -84,7 +84,9 @@ struct WorkflowFormular: View {
     var vorbelegung: [String: JSONWert] = [:]
     @State private var werte: [String: JSONWert] = [:]
     @State private var startet = false
+    @State private var startZeit = Date()
     @State private var fehler: String?
+    @ObservedObject private var uploads = UploadStand.shared
 
     var body: some View {
         Form {
@@ -104,7 +106,15 @@ struct WorkflowFormular: View {
                 } label: {
                     HStack {
                         Spacer()
-                        if startet { ProgressView().tint(.white) } else { Label("Starten", systemImage: "sparkles").font(.headline) }
+                        if startet {
+                            HStack(spacing: 10) {
+                                ProgressView().tint(.white)
+                                TimelineView(.periodic(from: .now, by: 1)) { t in
+                                    Text(statusText(Int(t.date.timeIntervalSince(startZeit))))
+                                        .font(.subheadline.weight(.semibold).monospacedDigit())
+                                }
+                            }
+                        } else { Label("Starten", systemImage: "sparkles").font(.headline) }
                         Spacer()
                     }
                     .padding(.vertical, 6)
@@ -121,6 +131,17 @@ struct WorkflowFormular: View {
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { vorbelegen() }
         .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// »Bitte warten …« mit dem, was gerade passiert
+    private func statusText(_ sek: Int) -> String {
+        if uploads.laeuft > 0 {
+            if let p = uploads.prozent, p < 0.999 { return "Bitte warten – Hochladen \(Int(p * 100)) %" }
+            return "Bitte warten – Datei wird verarbeitet …"
+        }
+        if sek < 3 { return "Bitte warten – wird an den PC übergeben …" }
+        if sek < 20 { return "Bitte warten – PC bereitet vor … \(sek) s" }
+        return "Bitte warten – PC plant den Auftrag (KI) … \(sek) s"
     }
 
     private func vorbelegen() {
@@ -150,7 +171,10 @@ struct WorkflowFormular: View {
         }
         guard let c = studio.client else { return }
         startet = true
+        startZeit = Date()
         defer { startet = false }
+        // ⏳ erst warten, bis Bilder/Videos/Audio fertig beim PC sind
+        while uploads.laeuft > 0 { try? await Task.sleep(for: .milliseconds(200)) }
         do {
             var felder: [String: Any] = [:]
             for (k, v) in werte { felder[k] = v.alsAny }

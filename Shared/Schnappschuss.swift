@@ -41,3 +41,24 @@ struct Schnappschuss: Codable {
                              wartend: s.auftraege.filter { $0.wartet }.count, zuletztFertig: fertig.map(e), gpu: s.gpuAuslastung)
     }
 }
+
+
+extension Schnappschuss {
+    /// 📈 Fortschritt zwischen zwei Abrufen hochrechnen (aus Restzeit) - damit das Widget weiterläuft, auch wenn iOS es nur
+    /// selten neu lädt. Nie über 99 %, fertig meldet erst der PC.
+    func hochgerechnet(an datum: Date) -> Schnappschuss {
+        var s = self
+        let dt = datum.timeIntervalSince(zeit)
+        guard dt > 0 else { return s }
+        s.laufend = laufend.map { e in
+            var e = e
+            if let r = e.rest, r > 1 {
+                let anteil = min(1, dt / r)
+                e.fortschritt = min(99, e.fortschritt + (100 - e.fortschritt) * anteil)
+                e.rest = max(0, r - dt)
+            }
+            return e
+        }
+        return s
+    }
+}

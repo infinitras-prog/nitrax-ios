@@ -3,6 +3,7 @@ import SwiftUI
 @MainActor
 struct AuftraegeAnsicht: View {
     @EnvironmentObject private var studio: Studio
+    @State private var loeschKandidat: Auftrag?
     @EnvironmentObject private var navigation: Navigation
     enum Filter: String, CaseIterable, Identifiable {
         case alle = "Alle", laeuft = "Läuft", videos = "Videos", bilder = "Bilder", audio = "Audio"
@@ -54,12 +55,19 @@ struct AuftraegeAnsicht: View {
                             if a.fortsetzbar {
                                 Button("Fortsetzen") { Task { await studio.fortsetzen(a) } }.tint(Farbe.akzent)
                             }
+                            if !a.offen {
+                                Button(role: .destructive) { loeschKandidat = a } label: { Label("Löschen", systemImage: "trash") }
+                            }
                         }
                 }
             }
             .scrollContentBackground(.hidden)
             .nxHintergrund()
             .searchable(text: $suche, prompt: "Suchen")
+            .confirmationDialog("»\(loeschKandidat?.titel ?? "")« löschen? Die Dateien landen am PC im Papierkorb.",
+                                isPresented: Binding(get: { loeschKandidat != nil }, set: { if !$0 { loeschKandidat = nil } }), titleVisibility: .visible) {
+                Button("Löschen", role: .destructive) { if let a = loeschKandidat { Task { await studio.loeschen(a) } }; loeschKandidat = nil }
+            }
             .navigationTitle("Aufträge")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -114,6 +122,8 @@ struct AuftragDetail: View {
     @State private var teilen: [URL] = []
     @State private var laedt = false
     @State private var abbrechenFrage = false
+    @State private var loeschFrage = false
+    @Environment(\.dismiss) private var schliessen
     @State private var vollbild: Int?
     @State private var enthuellen = false
     @State private var live: UIImage?
@@ -149,6 +159,16 @@ struct AuftragDetail: View {
         }
         .confirmationDialog("Auftrag abbrechen? Bisher Gerechnetes bleibt erhalten.", isPresented: $abbrechenFrage, titleVisibility: .visible) {
             Button("Abbrechen", role: .destructive) { Task { await studio.abbrechen(a) } }
+        }
+        .confirmationDialog("Auftrag löschen? Die Dateien landen am PC im Papierkorb.", isPresented: $loeschFrage, titleVisibility: .visible) {
+            Button("Löschen", role: .destructive) { Task { await studio.loeschen(a); schliessen() } }
+        }
+        .toolbar {
+            if !a.offen {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(role: .destructive) { loeschFrage = true } label: { Image(systemName: "trash") }.tint(Farbe.fehler)
+                }
+            }
         }
         .task { await liveHolen() }
         .onAppear { if a.fertig && a.bilderAnzahl > 0 { enthuellen = Enthuellt.neu(a.id) } }

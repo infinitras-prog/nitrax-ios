@@ -68,7 +68,8 @@ final class NXClient: @unchecked Sendable {
 
     var cookieKopf: [String: String] { ["Cookie": "nx_handy=\(verbindung.schluessel)"] }
 
-    private func senden(_ pfad: String, methode: String, body: Data?, typ: String?, zeit: TimeInterval? = nil) async throws -> Data {
+    private func senden(_ pfad: String, methode: String, body: Data?, typ: String?, zeit: TimeInterval? = nil,
+                        beobachter: URLSessionTaskDelegate? = nil) async throws -> Data {
         var versuche = 0
         while true {
             var gefunden = basis
@@ -76,10 +77,12 @@ final class NXClient: @unchecked Sendable {
             guard let b = gefunden else { throw NXFehler.keineVerbindung }
             var r = anfrage(b, pfad, methode: methode)
             if let zeit { r.timeoutInterval = zeit }
-            if let body { r.httpBody = body }
+            if let body, beobachter == nil { r.httpBody = body }
             if let typ { r.setValue(typ, forHTTPHeaderField: "Content-Type") }
             do {
-                let (d, resp) = try await session.data(for: r)
+                let (d, resp): (Data, URLResponse)
+                if let body, let beobachter { (d, resp) = try await session.upload(for: r, from: body, delegate: beobachter) }
+                else { (d, resp) = try await session.data(for: r) }
                 guard let h = resp as? HTTPURLResponse else { throw NXFehler.antwort }
                 if h.statusCode >= 400 { throw NXFehler.server(h.statusCode, String(data: d, encoding: .utf8) ?? "") }
                 return d
@@ -109,7 +112,8 @@ final class NXClient: @unchecked Sendable {
     }
 
     /// Datei hochladen (Feld »datei«) -> Antwort des PCs, z. B. {"name": "autoi2v_….png"}
-    func hochladen(_ pfad: String, daten: Data, dateiname: String, typ: String, felder: [String: String] = [:]) async throws -> JSONWert {
+    func hochladen(_ pfad: String, daten: Data, dateiname: String, typ: String, felder: [String: String] = [:],
+                   fortschritt: (@Sendable (Double) -> Void)? = nil) async throws -> JSONWert {
         let grenze = "nx-" + UUID().uuidString
         var body = Data()
         for (k, v) in felder {
@@ -123,7 +127,8 @@ final class NXClient: @unchecked Sendable {
         let hintergrund = await MainActor.run { UIApplication.shared.beginBackgroundTask(withName: "NitraX-Upload") }
         defer { Task { @MainActor in UIApplication.shared.endBackgroundTask(hintergrund) } }
         #endif
-        let d = try await senden(pfad, methode: "POST", body: body, typ: "multipart/form-data; boundary=\(grenze)", zeit: 600)
+        let d = try await senden(pfad, methode: "POST", body: body, typ: "multipart/form-data; boundary=\(grenze)", zeit: 600,
+                                 beobachter: fortschritt.map { UploadBeobachter($0) })
         return (try? JSONDecoder().decode(JSONWert.self, from: d)) ?? .nichts
     }
 
@@ -162,4 +167,16 @@ final class NXClient: @unchecked Sendable {
     }
 
     func stand() async throws -> StudioStand { try await get("/api/state", StudioStand.self) }
+}
+
+
+/// 📤 meldet, wie viel vom Upload schon beim PC ist (0…1)
+final class UploadBeobachter: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    let melden: @Sendable (Double) -> Void
+    init(_ melden: @escaping @Sendable (Double) -> Void) { self.melden = melden }
+    func urlSession(_ session: URLSession, task: URLSessionTask, didSendBodyData bytesSent: Int64,
+                    totalBytesSent: Int64, totalBytesExpectedToSend: Int64) {
+        guard totalBytesExpectedToSend > 0 else { return }
+        melden(min(1, Double(totalBytesSent) / Double(totalBytesExpectedToSend)))
+    }
 }

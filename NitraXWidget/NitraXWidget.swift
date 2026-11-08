@@ -36,8 +36,17 @@ struct StandAnbieter: TimelineProvider {
                 }
             }
             let laeuft = !(s?.laufend.isEmpty ?? true)
-            let naechste = Date().addingTimeInterval(laeuft ? 5 * 60 : 30 * 60)
-            completion(Timeline(entries: [StandEintrag(date: Date(), s: s)], policy: .after(naechste)))
+            let jetzt = Date()
+            guard laeuft, let s else {
+                completion(Timeline(entries: [StandEintrag(date: jetzt, s: s)], policy: .after(jetzt.addingTimeInterval(30 * 60))))
+                return
+            }
+            // 📈 läuft etwas: jede Minute ein hochgerechneter Stand (eine Stunde lang), neu abrufen nach ~3 min
+            let eintraege = (0..<60).map { i -> StandEintrag in
+                let d = jetzt.addingTimeInterval(Double(i) * 60)
+                return StandEintrag(date: d, s: s.hochgerechnet(an: d))
+            }
+            completion(Timeline(entries: eintraege, policy: .after(jetzt.addingTimeInterval(3 * 60))))
         }
     }
 }

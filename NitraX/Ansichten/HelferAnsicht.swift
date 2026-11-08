@@ -21,6 +21,8 @@ struct HelferAnsicht: View {
     @AppStorage("helfer_freihand") private var freihand = false
     @State private var ar = false
     @State private var tagebuch = false
+    @State private var verlauf = false
+    @Environment(\.scenePhase) private var phase
 
     var body: some View {
         ZStack {
@@ -65,6 +67,7 @@ struct HelferAnsicht: View {
                 // ⋯ Mehr: AR, Tagebuch, Anpassen, Neu laden
                 Menu {
                     Button { ar = true } label: { Label("Ins Zimmer stellen (AR)", systemImage: "arkit") }.disabled(!bruecke.bereit)
+                    Button { verlauf = true } label: { Label("Gesprächsverlauf", systemImage: "clock.arrow.circlepath") }
                     Button { tagebuch = true } label: { Label("Unser Tagebuch", systemImage: "book.closed") }
                     Button { einstellungen = true } label: { Label("Helfer anpassen", systemImage: "slider.horizontal.3") }
                     Button { neuLaden = UUID() } label: { Label("Neu laden", systemImage: "arrow.clockwise") }
@@ -104,6 +107,7 @@ struct HelferAnsicht: View {
         }
         .animation(.spring(duration: 0.3), value: augen.laeuft)
         .sheet(isPresented: $tagebuch) { HelferTagebuch() }
+        .sheet(isPresented: $verlauf) { HelferVerlauf { neuLaden = UUID() } }
         .sheet(isPresented: $einstellungen) {
             HelferEinstellungen { neuLaden = UUID() }
         }
@@ -115,7 +119,10 @@ struct HelferAnsicht: View {
             HelferTon.einrichten()
             if augenAn { Task { await augen.starten() } }
         }
-        .onDisappear { augen.stoppen(); dauer.stoppen() }
+        .onDisappear { augen.stoppen(); dauer.stoppen(); stummSchalten() }
+        // 🔇 Tab gewechselt / App im Hintergrund: sofort still (die Antwort steht trotzdem im Verlauf)
+        .onChange(of: navigation.reiter) { _, r in if r != .helfer { stummSchalten() } }
+        .onChange(of: phase) { _, ph in if ph != .active { stummSchalten() } }
         .onChange(of: freihand) { _, an in freihandSchalten(an) }
         .onChange(of: bruecke.bereit) { _, b in if b { freihandSchalten(freihand) } }
         .onChange(of: augenAn) { _, an in if an { Task { await augen.starten() } } else { augen.stoppen() } }
@@ -128,6 +135,12 @@ struct HelferAnsicht: View {
         guard let v = studio.verbindung, let basis = studio.client?.aktuelleBasis ?? v.reihenfolge.first else { return nil }
         let k = v.schluessel.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? v.schluessel
         return URL(string: basis + "/?k=" + k + "#helfer")
+    }
+
+    private func stummSchalten() {
+        if dauer.phase != .aus { dauer.stoppen() }
+        bruecke.js("window.nxHandyHelfer && (window.nxHandyHelfer.stumm ? window.nxHandyHelfer.stumm() : window.nxHandyHelfer.unterbrechen && window.nxHandyHelfer.unterbrechen())")
+        bruecke.js("document.querySelectorAll('audio').forEach(function(a){a.pause()})")
     }
 
     private func fotoSenden(_ daten: Data) async {
