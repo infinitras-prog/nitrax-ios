@@ -12,9 +12,11 @@ enum SiriHilfe {
     }
 
     /// Nachricht an einen Chat schicken und die fertige Antwort einsammeln (Ereignisstrom bis »ende«)
-    static func antwort(_ c: NXClient, chat: String, text: String, werkzeuge: [String: Any]) async throws -> String {
+    static func antwort(_ c: NXClient, chat: String, text: String, werkzeuge: [String: Any], modus: String? = nil) async throws -> String {
         var t = ""
-        for try await ev in c.strom("/api/chats/\(chat)/senden", ["text": text, "werkzeuge": werkzeuge]) {
+        var body: [String: Any] = ["text": text, "werkzeuge": werkzeuge]
+        if let modus { body["modus"] = modus }
+        for try await ev in c.strom("/api/chats/\(chat)/senden", body) {
             switch ev["t"]?.text ?? "" {
             case "text": t += ev["d"]?.text ?? ""
             case "zurueck": t = String(t.dropLast(min(Int(ev["n"]?.zahl ?? 0), t.count)))
@@ -25,11 +27,20 @@ enum SiriHilfe {
         return sprechbar(t)
     }
 
-    /// Markdown, Links und lange Listen raus - Siri liest es vor
+    /// Siri liest vor: Markdown, Links, Gefühls-/Aktionsmarken des Helfers ([freude], [oeffne:…], [pc:…]),
+    /// Regieanweisungen (*lächelt*) und Emojis raus - sonst liest Siri »Klammer freude« oder Emoji-Namen vor.
     static func sprechbar(_ t: String) -> String {
         var s = t.replacingOccurrences(of: "**", with: "").replacingOccurrences(of: "`", with: "")
         s = s.replacingOccurrences(of: #"\[([^\]]+)\]\([^)]+\)"#, with: "$1", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"\[[^\]]{0,240}\]"#, with: "", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"\*[^*\n]{1,60}\*"#, with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: #"(?m)^\s*[#>*-]+\s*"#, with: "", options: .regularExpression)
+        s = String(String.UnicodeScalarView(s.unicodeScalars.filter { u in
+            !(u.properties.isEmojiPresentation || (u.properties.isEmoji && u.value > 0x238C)
+              || u.value == 0xFE0F || u.value == 0x200D || (0x1F3FB...0x1F3FF).contains(u.value))
+        }))
+        s = s.replacingOccurrences(of: #"[ \t]{2,}"#, with: " ", options: .regularExpression)
+        s = s.replacingOccurrences(of: #"\s+([.,!?])"#, with: "$1", options: .regularExpression)
         s = s.trimmingCharacters(in: .whitespacesAndNewlines)
         return s.isEmpty ? "Ich habe gerade keine Antwort bekommen." : String(s.prefix(700))
     }
@@ -38,8 +49,9 @@ enum SiriHilfe {
         let c = try client()
         let r = try await c.post("/api/begleiter/chat", [:])
         guard let id = r["id"]?.text else { throw NXFehler.antwort }
-        return try await antwort(c, chat: id, text: frage + "\n\n(Über Siri gesprochen – antworte kurz in ein bis drei Sätzen, ohne Listen.)",
-                                 werkzeuge: ["web": true, "bild": false, "gedaechtnis": true, "denken": "aus"])
+        // modus »begleiter« = derselbe Helfer wie in der App (Persönlichkeit, Gedächtnis, Programmlage)
+        return try await antwort(c, chat: id, text: "(Du siehst gerade: er spricht über Siri mit dir, ohne Bildschirm – antworte in ein bis drei kurzen, gesprochenen Sätzen, ohne Listen, ohne Emojis)\n" + frage,
+                                 werkzeuge: ["web": true, "bild": false, "gedaechtnis": true, "denken": "aus"], modus: "begleiter")
     }
 
     /// Workflow-Agent in einem eigenen »Siri«-Chat (bleibt erhalten, damit Rückfragen weitergehen)
@@ -86,6 +98,20 @@ struct HelferFragen: AppIntent {
     func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<String> {
         let a = try await SiriHilfe.helfer(frage)
         return .result(value: a, dialog: "\(a)")
+    }
+}
+
+/// Freihändig mit dem Helfer reden: öffnet die App beim Helfer und hört sofort zu (Erkennung am PC = genauer als Diktat)
+struct HelferGespraech: AppIntent {
+    static var title: LocalizedStringResource = "Mit dem Helfer sprechen"
+    static var description = IntentDescription("Öffnet deinen 3D-Helfer und hört dir sofort zu.")
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        Navigation.shared.reiter = .helfer
+        Navigation.shared.helferZuhoeren = true
+        return .result()
     }
 }
 
@@ -149,8 +175,11 @@ struct WarteschlangeFortsetzen: AppIntent {
 
 struct NitraXKurzbefehle: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(intent: HelferGespraech(), phrases: ["Sprich mit \(.applicationName)", "Rede mit \(.applicationName)",
+                                                          "\(.applicationName) Helfer", "Öffne meinen Helfer in \(.applicationName)"],
+                    shortTitle: "Mit Helfer sprechen", systemImageName: "waveform")
         AppShortcut(intent: HelferFragen(), phrases: ["Frag \(.applicationName)", "Frag meinen Helfer in \(.applicationName)",
-                                                       "\(.applicationName) Helfer"],
+                                                       "Eine Frage an \(.applicationName)"],
                     shortTitle: "Helfer fragen", systemImageName: "person.wave.2")
         AppShortcut(intent: StudioStatus(), phrases: ["Wie weit ist \(.applicationName)", "Status von \(.applicationName)",
                                                        "Was rechnet \(.applicationName)"],

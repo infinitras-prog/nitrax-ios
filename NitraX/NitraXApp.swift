@@ -42,6 +42,8 @@ final class Navigation: ObservableObject {
     @Published var auftragZiel: String?
     /// Helfer-Meldung zum Vorlesen (Antippen einer Mitteilung: der Helfer sagt sie dir)
     @Published var helferMeldung: Int?
+    /// »Sprich mit NitraX«: Helfer öffnen und sofort zuhören
+    @Published var helferZuhoeren = false
 
     func oeffne(auftrag id: String) {
         reiter = .auftraege

@@ -79,7 +79,7 @@ struct StudioAnsicht: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     pcKarte
-                    SiriTipView(intent: HelferFragen(), isVisible: $siriTipp).siriTipViewStyle(.dark)
+                    SiriTipView(intent: HelferGespraech(), isVisible: $siriTipp).siriTipViewStyle(.dark)
                     if !studio.stand.fremd.isEmpty { spielHinweis }
                     if !laufend.isEmpty || !wartend.isEmpty { warteschlange }
                     if !zuletzt.isEmpty { zuletztFertig }

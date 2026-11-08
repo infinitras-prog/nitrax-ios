@@ -4,15 +4,15 @@ import AVFoundation
 
 /// 🧍 Der 3D-Helfer - Figur, Touch-Gesten, Gespräch, Spiele, Listen, Wecker (die Helfer-Ansicht des PCs, eingebettet).
 /// Das Mikrofon macht die App selbst: in Webansichten sperrt iOS es ohne HTTPS - so geht Sprechen auch im WLAN.
+/// Die Seite öffnet den Helfer selbst nicht zuverlässig (sie räumt beim Laden ihre Adresse auf) - deshalb öffnet die App
+/// ihn nach dem Laden über window.nxHandyHelfer und blendet die übrige Handy-Seite aus.
 @MainActor
 struct HelferAnsicht: View {
     @EnvironmentObject private var studio: Studio
     @EnvironmentObject private var navigation: Navigation
     @State private var neuLaden = UUID()
-    @State private var meldung: Int?
     @StateObject private var bruecke = HelferBruecke()
     @State private var kamera = false
-    @State private var fotoFrage = false
 
     var body: some View {
         ZStack {
@@ -22,6 +22,18 @@ struct HelferAnsicht: View {
             } else {
                 ContentUnavailableView("Nicht verbunden", systemImage: "wifi.exclamationmark")
             }
+            if !bruecke.bereit && bruecke.fehler == nil {
+                ProgressView("Helfer kommt …").tint(.white).padding(18)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+            }
+            if let f = bruecke.fehler {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle").font(.largeTitle)
+                    Text(f).multilineTextAlignment(.center).font(.callout)
+                    Button("Nochmal") { neuLaden = UUID() }.buttonStyle(.borderedProminent)
+                }
+                .padding(22).background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18)).padding(30)
+            }
         }
         .overlay(alignment: .topTrailing) {
             HStack(spacing: 10) {
@@ -29,24 +41,25 @@ struct HelferAnsicht: View {
                 Button { kamera = true } label: {
                     Image(systemName: "camera.fill").padding(10).background(.ultraThinMaterial, in: Circle())
                 }
-                Button { meldung = nil; neuLaden = UUID() } label: {
+                Button { neuLaden = UUID() } label: {
                     Image(systemName: "arrow.clockwise").padding(10).background(.ultraThinMaterial, in: Circle())
                 }
             }
-            .padding(.trailing, 12).padding(.top, 4)
+            .padding(.trailing, 12).padding(.top, 52)
             .opacity(0.85)
         }
         .fullScreenCover(isPresented: $kamera) {
             KameraAufnahme { d in Task { await fotoSenden(d) } }.ignoresSafeArea()
         }
-        .onAppear { meldungUebernehmen() }
-        .onChange(of: navigation.helferMeldung) { _, _ in meldungUebernehmen() }
+        .onAppear { auftraegeUebernehmen() }
+        .onChange(of: navigation.helferMeldung) { _, _ in auftraegeUebernehmen() }
+        .onChange(of: navigation.helferZuhoeren) { _, _ in auftraegeUebernehmen() }
     }
 
     private var adresse: URL? {
         guard let v = studio.verbindung, let basis = studio.client?.aktuelleBasis ?? v.reihenfolge.first else { return nil }
         let k = v.schluessel.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? v.schluessel
-        return URL(string: basis + "/?k=" + k + "#helfer" + (meldung.map { "&m=\($0)" } ?? ""))
+        return URL(string: basis + "/?k=" + k + "#helfer")
     }
 
     private func fotoSenden(_ daten: Data) async {
@@ -63,25 +76,57 @@ struct HelferAnsicht: View {
         } catch { studio.meldung = error.localizedDescription }
     }
 
-    /// Mitteilung angetippt: Helfer neu öffnen, er sagt dir die Meldung
-    private func meldungUebernehmen() {
-        guard let m = navigation.helferMeldung else { return }
-        navigation.helferMeldung = nil
-        meldung = m
-        neuLaden = UUID()
+    /// Mitteilung angetippt (der Helfer sagt sie dir) bzw. »Sprich mit NitraX« (sofort zuhören)
+    private func auftraegeUebernehmen() {
+        if let m = navigation.helferMeldung {
+            navigation.helferMeldung = nil
+            bruecke.meldung(m)
+        }
+        if navigation.helferZuhoeren {
+            navigation.helferZuhoeren = false
+            bruecke.zuhoeren()
+        }
     }
 }
 
-/// Verbindung SwiftUI <-> Helfer-Seite (Foto senden, Text einspielen)
+/// Verbindung SwiftUI <-> Helfer-Seite. Aktionen warten, bis die Figur da ist.
 @MainActor
 final class HelferBruecke: ObservableObject {
     weak var web: WKWebView?
+    weak var koordinator: HelferWeb.Koordinator?
+    @Published var bereit = false
+    @Published var fehler: String?
+    private var wartend: [() -> Void] = []
+
+    func neu() { bereit = false; fehler = nil }
+
+    func fertig() {
+        bereit = true
+        let liste = wartend
+        wartend = []
+        liste.forEach { $0() }
+    }
+
+    private func wennBereit(_ f: @escaping () -> Void) { if bereit { f() } else { wartend.append(f) } }
+
+    func js(_ code: String) { web?.evaluateJavaScript(code, completionHandler: nil) }
 
     func bild(_ name: String, frage: String = "📷 Schau mal – was siehst du auf dem Foto?") {
         let n = (try? String(data: JSONEncoder().encode(name), encoding: .utf8)) ?? nil
         let f = (try? String(data: JSONEncoder().encode(frage), encoding: .utf8)) ?? nil
         guard let n, let f else { return }
-        web?.evaluateJavaScript("window.nxIOSBild && window.nxIOSBild(\(n), \(f))", completionHandler: nil)
+        wennBereit { [weak self] in self?.js("window.nxIOSBild && window.nxIOSBild(\(n), \(f))") }
+    }
+
+    func meldung(_ m: Int) {
+        wennBereit { [weak self] in self?.js("location.hash = '#helfer&m=\(m)'") }
+    }
+
+    func zuhoeren() {
+        wennBereit { [weak self] in
+            guard let k = self?.koordinator else { return }
+            Task { await k.zuhoerer.starten() }
+        }
     }
 }
 
@@ -90,13 +135,18 @@ struct HelferWeb: UIViewRepresentable {
     let client: NXClient
     let bruecke: HelferBruecke
 
-    /// Verbindet die Helfer-Seite mit dem nativen Mikrofon: 🎤 der Seite -> App nimmt auf -> PC erkennt -> Text an den Helfer
-    static let bruecke = """
+    /// Öffnet den Helfer, blendet die übrige Handy-Seite aus und verbindet 🎤 mit dem nativen Mikrofon.
+    /// (Swift-Mehrzeilentext: im JS KEINE Backslashes verwenden.)
+    static let skript = """
     (function(){
       if (window.__nxIOS) return; window.__nxIOS = true;
       var st = document.createElement('style');
-      st.textContent = '.nxhh [data-a="push"], .nxhh [data-a="zu"] { display: none !important }';
+      st.textContent = 'html, body { background: #07080f !important } '
+        + 'body > *:not(.nxhh):not(.nxhh-toast) { visibility: hidden !important } '
+        + '#nxhh-start, .nxhh [data-a="push"], .nxhh [data-a="zu"] { display: none !important } '
+        + '.nxhh-kopf { padding-right: 104px !important }';
       (document.head || document.documentElement).appendChild(st);
+      function melden(was) { try { window.webkit.messageHandlers.nxHelfer.postMessage(was) } catch (e) {} }
       function binden() {
         var b = document.querySelector('.nxhh [data-a="mikro"]');
         if (!b || b.__nx) return;
@@ -108,13 +158,24 @@ struct HelferWeb: UIViewRepresentable {
       }
       new MutationObserver(binden).observe(document.documentElement, {childList: true, subtree: true});
       binden();
+      var versuche = 0;
+      (function auf() {
+        versuche++;
+        if (document.querySelector('.nxhh canvas')) { binden(); setTimeout(function () { melden('bereit') }, 400); return; }
+        if (window.nxHandyHelfer && !document.querySelector('.nxhh')) { try { window.nxHandyHelfer.oeffnen() } catch (e) {} }
+        if (versuche > 150) { melden(window.nxHandyHelfer ? 'keinbild' : 'keinhelfer'); return; }
+        setTimeout(auf, 100);
+      })();
       window.nxIOSZustand = function (an, t) {
         var b = document.querySelector('.nxhh [data-a="mikro"]'); if (b) b.classList.toggle('an', !!an);
         var z = document.querySelector('.nxhh-zust'); if (z && typeof t === 'string') z.textContent = t;
+        try { if (window.nxHandyHelfer && window.nxHandyHelfer.hoert) window.nxHandyHelfer.hoert(!!an) } catch (e) {}
       };
       window.nxIOSText = function (t) {
+        if (!t) return;
+        if (window.nxHandyHelfer && window.nxHandyHelfer.fragen) { window.nxHandyHelfer.fragen(t); return; }
         var i = document.querySelector('.nxhh-unten input'), s = document.querySelector('.nxhh [data-a="senden"]');
-        if (i && s && t) { i.value = t; s.click(); }
+        if (i && s) { i.value = t; s.click(); }
       };
       // 📷 Foto aus der App: hängt an die nächste Frage an den Helfer (der Helfer schickt seine Fragen per fetch)
       window.__nxBilder = [];
@@ -133,29 +194,35 @@ struct HelferWeb: UIViewRepresentable {
         var log = document.querySelector('.nxhh-log');
         if (log) { var z = document.createElement('div'); z.className = 'du';
           z.innerHTML = '<img src="/api/image/' + encodeURIComponent(name) + '" style="max-width:180px">'; log.appendChild(z); log.scrollTop = log.scrollHeight; }
-        window.nxIOSText(frage);
+        var i = document.querySelector('.nxhh-unten input'), s = document.querySelector('.nxhh [data-a="senden"]');
+        if (i && s) { i.value = frage; s.click(); }
       };
     })();
     """
 
-    func makeCoordinator() -> Koordinator { Koordinator(client: client) }
+    func makeCoordinator() -> Koordinator { Koordinator(client: client, bruecke: bruecke) }
 
     func makeUIView(context: Context) -> WKWebView {
         let k = WKWebViewConfiguration()
         k.allowsInlineMediaPlayback = true
         k.mediaTypesRequiringUserActionForPlayback = []          // Stimme des Helfers ohne extra Tippen
         let inhalt = WKUserContentController()
-        inhalt.addUserScript(WKUserScript(source: HelferWeb.bruecke, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        inhalt.addUserScript(WKUserScript(source: HelferWeb.skript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxMikro")
+        inhalt.add(SchwacherHandler(context.coordinator), name: "nxHelfer")
         k.userContentController = inhalt
         let w = WKWebView(frame: .zero, configuration: k)
         w.isOpaque = false
         w.backgroundColor = .clear
         w.scrollView.backgroundColor = .clear
+        w.scrollView.isScrollEnabled = false
         w.scrollView.contentInsetAdjustmentBehavior = .never
         w.uiDelegate = context.coordinator
+        w.navigationDelegate = context.coordinator
         context.coordinator.web = w
         bruecke.web = w
+        bruecke.koordinator = context.coordinator
+        bruecke.neu()
         w.load(URLRequest(url: url))
         return w
     }
@@ -165,26 +232,49 @@ struct HelferWeb: UIViewRepresentable {
     static func dismantleUIView(_ w: WKWebView, coordinator: Koordinator) {
         coordinator.zuhoerer.abbrechen()
         w.configuration.userContentController.removeScriptMessageHandler(forName: "nxMikro")
+        w.configuration.userContentController.removeScriptMessageHandler(forName: "nxHelfer")
     }
 
     @MainActor
-    final class Koordinator: NSObject, WKUIDelegate, WKScriptMessageHandler {
+    final class Koordinator: NSObject, WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
         weak var web: WKWebView?
         let client: NXClient
+        let bruecke: HelferBruecke
         let zuhoerer = Zuhoerer()
 
-        init(client: NXClient) {
+        init(client: NXClient, bruecke: HelferBruecke) {
             self.client = client
+            self.bruecke = bruecke
             super.init()
             zuhoerer.fertig = { [weak self] datei in Task { await self?.verstehen(datei) } }
             zuhoerer.zustand = { [weak self] an, text in self?.zustand(an, text) }
         }
 
         nonisolated func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage) {
+            let name = message.name
             let befehl = message.body as? String ?? ""
             Task { @MainActor in
-                if befehl == "start" { await self.zuhoerer.starten() } else { self.zuhoerer.stoppen() }
+                if name == "nxHelfer" {
+                    switch befehl {
+                    case "bereit": self.bruecke.fertig()
+                    case "keinhelfer": self.bruecke.fehler = "Die Helfer-Seite vom PC kam nicht vollständig an. Läuft NitraX AI Studio mit eingeschaltetem Helfer?"
+                    default: self.bruecke.fehler = "Die 3D-Figur ließ sich nicht anzeigen. Tippe auf »Nochmal«."
+                    }
+                } else if befehl == "start" { await self.zuhoerer.starten() } else { self.zuhoerer.stoppen() }
             }
+        }
+
+        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+            bruecke.fehler = "Verbindung zum PC unterbrochen: \(error.localizedDescription)"
+        }
+
+        func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+            bruecke.fehler = "PC nicht erreichbar: \(error.localizedDescription)"
+        }
+
+        func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+            bruecke.neu()
+            webView.reload()                                  // iOS hat die Seite (Speicher) beendet: neu laden statt schwarz
         }
 
         private func zustand(_ an: Bool, _ text: String) {
