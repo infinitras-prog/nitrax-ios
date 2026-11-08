@@ -58,6 +58,13 @@ struct EinstellungenAnsicht: View {
                 .task { if let c = studio.client { push = await Push.stand(c) } }
 
                 Section("iPhone") {
+                    Picker("App-Symbol", selection: Binding(get: { UIApplication.shared.alternateIconName ?? "" }, set: { neu in
+                        UIApplication.shared.setAlternateIconName(neu.isEmpty ? nil : neu) { _ in }
+                    })) {
+                        Text("✨ Original").tag("")
+                        Text("🌈 Neon").tag("AppIcon-Neon")
+                        Text("🌑 Dunkel").tag("AppIcon-Dunkel")
+                    }
                     Toggle("Mit Face ID schützen", isOn: $faceID)
                     Toggle("Live-Aktivität (Sperrbildschirm & Dynamic Island)", isOn: $live)
                         .onChange(of: live) { _, an in LiveAktivitaeten.an = an }

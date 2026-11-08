@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 import WidgetKit
 
 /// Workflows, Stimmen und letzte Ergebnisse (GET /api/handy/workflows)
@@ -114,6 +115,38 @@ final class Studio: ObservableObject {
     init() {
         verbindung = Verbindung.laden()
         if let v = verbindung { client = NXClient(v) }
+        // ⚡ Schnellstart: sofort den zuletzt bekannten Stand zeigen, im Hintergrund frisch holen
+        if let d = try? Data(contentsOf: Self.ablage("stand.json")), let s = try? JSONDecoder().decode(StudioStand.self, from: d) { stand = s }
+        if let d = try? Data(contentsOf: Self.ablage("workflows.json")), let w = try? JSONDecoder().decode(WorkflowListe.self, from: d) { workflows = w }
+    }
+
+    static func ablage(_ name: String) -> URL {
+        let o = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("NitraX", isDirectory: true)
+        try? FileManager.default.createDirectory(at: o, withIntermediateDirectories: true)
+        return o.appendingPathComponent(name)
+    }
+
+    private var selfieZeit = Date.distantPast
+    private var workflowsFrisch = false
+
+    /// 🧍 Neuestes Selfie des Helfers als Bild fürs Widget (App Group)
+    private func selfieFuersWidget(_ c: NXClient) async {
+        guard Date().timeIntervalSince(selfieZeit) > 600 else { return }
+        selfieZeit = Date()
+        guard let b = try? await c.get("/api/begleiter", JSONWert.self), let id = b["zustand"]?["selfies"]?.liste?.last?.text,
+              id != Gemeinsam.defaults.string(forKey: "helfer_selfie_id"),
+              let url = c.url("/api/begleiter/ergebnis/\(id)"),
+              let ordner = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: Gemeinsam.gruppe) else { return }
+        var r = URLRequest(url: url)
+        for (k, v) in c.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
+        guard let (d, antwort) = try? await URLSession.shared.data(for: r), (antwort as? HTTPURLResponse)?.statusCode == 200,
+              let bild = UIImage(data: d) else { return }
+        let f = min(1, 600 / max(bild.size.width, bild.size.height))
+        let g = CGSize(width: bild.size.width * f, height: bild.size.height * f)
+        guard let jpg = UIGraphicsImageRenderer(size: g).image(actions: { _ in bild.draw(in: CGRect(origin: .zero, size: g)) }).jpegData(compressionQuality: 0.85) else { return }
+        try? jpg.write(to: ordner.appendingPathComponent("helfer_selfie.jpg"), options: .atomic)
+        Gemeinsam.defaults.set(id, forKey: "helfer_selfie_id")
+        WidgetCenter.shared.reloadTimelines(ofKind: "NitraXHelfer")
     }
 
     var verbunden: Bool { verbindung != nil }
@@ -155,8 +188,10 @@ final class Studio: ObservableObject {
     func aktualisieren() async {
         guard let c = client else { return }
         do {
-            let s = try await c.stand()
+            let roh = try await c.roh("/api/state")
+            let s = try JSONDecoder().decode(StudioStand.self, from: roh)
             stand = s
+            try? roh.write(to: Self.ablage("stand.json"), options: .atomic)
             erreichbar = true
             Benachrichtigungen.vergleichen(s)
             widgetAuffrischen(s)
@@ -169,6 +204,7 @@ final class Studio: ObservableObject {
                                 zeit: Date()).speichern()
                     WidgetCenter.shared.reloadTimelines(ofKind: "NitraXHelfer")
                 }
+                await selfieFuersWidget(c)
             }
             OfflineGalerie.shared.abgleichen(s, client: c)
         } catch {
@@ -191,9 +227,12 @@ final class Studio: ObservableObject {
     }
 
     func workflowsLaden(neu: Bool = false) async {
-        guard let c = client, neu || workflows == nil else { return }
+        guard let c = client, neu || workflows == nil || !workflowsFrisch else { return }
+        workflowsFrisch = true
         do {
-            workflows = try await c.get("/api/handy/workflows", WorkflowListe.self)
+            let roh = try await c.roh("/api/handy/workflows")
+            workflows = try JSONDecoder().decode(WorkflowListe.self, from: roh)
+            try? roh.write(to: Self.ablage("workflows.json"), options: .atomic)
         } catch { meldung = error.localizedDescription }
         if bildmodelle.isEmpty || neu {
             struct M: Decodable { var models: [Bildmodell]? }

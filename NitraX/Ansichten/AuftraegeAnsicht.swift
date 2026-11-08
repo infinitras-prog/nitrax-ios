@@ -114,6 +114,9 @@ struct AuftragDetail: View {
     @State private var teilen: [URL] = []
     @State private var laedt = false
     @State private var abbrechenFrage = false
+    @State private var vollbild: Int?
+    @State private var enthuellen = false
+    @State private var live: UIImage?
 
     /// immer der aktuelle Stand (Fortschritt läuft live weiter)
     private var a: Auftrag { studio.stand.auftraege.first { $0.id == auftrag.id } ?? auftrag }
@@ -147,7 +150,15 @@ struct AuftragDetail: View {
         .confirmationDialog("Auftrag abbrechen? Bisher Gerechnetes bleibt erhalten.", isPresented: $abbrechenFrage, titleVisibility: .visible) {
             Button("Abbrechen", role: .destructive) { Task { await studio.abbrechen(a) } }
         }
+        .task { await liveHolen() }
+        .onAppear { if a.fertig && a.bilderAnzahl > 0 { enthuellen = Enthuellt.neu(a.id) } }
+        .onChange(of: a.fertig) { _, f in if f && a.bilderAnzahl > 0 { enthuellen = Enthuellt.neu(a.id) } }
+        .fullScreenCover(item: Binding(get: { vollbild.map { BildNr(i: $0) } }, set: { vollbild = $0?.i })) { v in
+            MedienVollbild(urls: (0..<a.bilderAnzahl).compactMap { studio.url("/api/img/file/\(a.id)/\($0)") }, seite: v.i)
+        }
     }
+
+    struct BildNr: Identifiable { let i: Int; var id: Int { i } }
 
     @ViewBuilder private var medien: some View {
         if a.fertig, a.hatVideo, let u = studio.url("/api/video/\(a.id)") {
@@ -156,11 +167,13 @@ struct AuftragDetail: View {
             TabView {
                 ForEach(0..<a.bilderAnzahl, id: \.self) { k in
                     NXBild(url: studio.url("/api/img/file/\(a.id)/\(k)"), modus: .fit)
+                        .onTapGesture { vollbild = k }
                 }
             }
             .tabViewStyle(.page)
             .frame(height: 360)
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .enthuellen(enthuellen)
         } else if a.fertig, let ton = tonPfad, let u = studio.url(ton) {
             VStack(spacing: 10) {
                 if let i = a.image, !i.isEmpty {
@@ -170,8 +183,31 @@ struct AuftragDetail: View {
                 }
                 NXPlayer(url: u, nurTon: true).clipShape(RoundedRectangle(cornerRadius: 12))
             }
+        } else if a.laeuft, let live {
+            // 👀 Live-Vorschau: Zwischenbild, während es entsteht
+            Image(uiImage: live).resizable().scaledToFit().frame(maxHeight: 340)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(alignment: .topLeading) {
+                    Label("live", systemImage: "dot.radiowaves.left.and.right").font(.caption2.weight(.bold))
+                        .padding(.horizontal, 8).padding(.vertical, 4).background(Farbe.fehler.opacity(0.85), in: Capsule()).padding(8)
+                }
+                .laufGlut(true)
+                .animation(.easeInOut(duration: 0.4), value: live)
         } else if let v = studio.vorschauURL(a) {
             NXBild(url: v, modus: .fit).frame(maxHeight: 300).clipShape(RoundedRectangle(cornerRadius: 16))
+        }
+    }
+
+    /// Zwischenbilder holen, solange der Auftrag läuft (alle 2 s)
+    private func liveHolen() async {
+        while !Task.isCancelled {
+            if a.laeuft, let c = studio.client, let url = c.url("/api/jobs/\(a.id)/vorschau") {
+                var r = URLRequest(url: url)
+                r.timeoutInterval = 8
+                for (k, v) in c.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
+                if let (d, antwort) = try? await URLSession.shared.data(for: r), (antwort as? HTTPURLResponse)?.statusCode == 200, let b = UIImage(data: d) { live = b }
+            } else if !a.laeuft { live = nil }
+            try? await Task.sleep(for: .seconds(2))
         }
     }
 

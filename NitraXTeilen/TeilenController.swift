@@ -27,7 +27,7 @@ struct TeilenAnsicht: View {
     @State private var laeuft = false
     @State private var meldung: String?
 
-    private let akzent = Color(red: 0.49, green: 0.55, blue: 1.0)
+    private let akzent = Color(red: 0.91, green: 0.64, blue: 0.24)
 
     var body: some View {
         NavigationStack {
@@ -44,6 +44,14 @@ struct TeilenAnsicht: View {
                 }
                 Section("Was soll passieren?") {
                     TextField("z. B. sie dreht sich lachend zur Kamera, Wind im Haar", text: $text, axis: .vertical).lineLimit(2...6)
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(Self.schnell.indices, id: \.self) { i in
+                                let s = Self.schnell[i]
+                                Button(s.0) { Task { text = s.2; await los(s.1) } }.buttonStyle(.bordered).font(.caption)
+                            }
+                        }
+                    }
                 }
                 Section {
                     Button { Task { await los("i2v") } } label: { Label("▶ Video daraus machen", systemImage: "play.rectangle") }
@@ -61,6 +69,14 @@ struct TeilenAnsicht: View {
         }
         .task { await laden() }
     }
+
+    /// Ein Tipp = sofort los
+    static let schnell: [(String, String, String)] = [
+        ("🌸 Als Anime", "x-r2i", "Verwandle das Bild in einen hochwertigen Anime-Stil, gleiche Personen und Komposition"),
+        ("🎨 Als Gemälde", "x-r2i", "Verwandle das Bild in ein Ölgemälde mit sichtbaren Pinselstrichen, gleiche Komposition"),
+        ("✨ Lebendig machen", "i2v", "Natürliche, lebendige Bewegung passend zum Bild, sanfte Kamerafahrt"),
+        ("🧸 Als 3D-Figur", "x-r2i", "Verwandle das Motiv in eine niedliche 3D-Figur im Pixar-Stil, gleiche Farben"),
+    ]
 
     private func laden() async {
         for p in anbieter.prefix(4) where p.hasItemConformingToTypeIdentifier(UTType.image.identifier) {

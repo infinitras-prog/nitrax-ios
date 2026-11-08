@@ -5,6 +5,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
         Benachrichtigungen.kategorienEinrichten()
+        AnrufDienst.shared.starten()                   // 📞 Helfer-Anrufe (VoIP)
+        if UserDefaults.standard.bool(forKey: "heim_an") { _ = HeimOrt.shared }      // 🏠 Heimkehr-Begrüßung
         return true
     }
 
@@ -116,6 +118,7 @@ struct NitraXApp: App {
             switch neu {
             case .active:
                 studio.starten()
+                Task { await AnrufDienst.shared.anmelden() }
                 // 🎛 Kontrollzentrum / Sperrbildschirm: »Mit Helfer sprechen«
                 let t = Gemeinsam.defaults.double(forKey: "helfer_oeffnen")
                 if t > 0, Date().timeIntervalSince1970 - t < 30 {

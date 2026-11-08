@@ -1,4 +1,7 @@
 import Foundation
+#if !NX_ERWEITERUNG
+import UIKit
+#endif
 
 enum NXFehler: LocalizedError {
     case keineVerbindung
@@ -91,6 +94,8 @@ final class NXClient: @unchecked Sendable {
         }
     }
 
+    func roh(_ pfad: String) async throws -> Data { try await senden(pfad, methode: "GET", body: nil, typ: nil) }
+
     func get<T: Decodable>(_ pfad: String, _ t: T.Type) async throws -> T {
         let d = try await senden(pfad, methode: "GET", body: nil, typ: nil)
         return try JSONDecoder().decode(T.self, from: d)
@@ -113,6 +118,11 @@ final class NXClient: @unchecked Sendable {
         body.append("--\(grenze)\r\nContent-Disposition: form-data; name=\"datei\"; filename=\"\(dateiname)\"\r\nContent-Type: \(typ)\r\n\r\n".data(using: .utf8)!)
         body.append(daten)
         body.append("\r\n--\(grenze)--\r\n".data(using: .utf8)!)
+        #if !NX_ERWEITERUNG
+        // ⏳ große Uploads laufen weiter, auch wenn man kurz die App wechselt (iOS gibt dafür einige Minuten)
+        let hintergrund = await MainActor.run { UIApplication.shared.beginBackgroundTask(withName: "NitraX-Upload") }
+        defer { Task { @MainActor in UIApplication.shared.endBackgroundTask(hintergrund) } }
+        #endif
         let d = try await senden(pfad, methode: "POST", body: body, typ: "multipart/form-data; boundary=\(grenze)", zeit: 600)
         return (try? JSONDecoder().decode(JSONWert.self, from: d)) ?? .nichts
     }

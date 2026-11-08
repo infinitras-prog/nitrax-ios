@@ -29,9 +29,10 @@ final class Dauergespraech: ObservableObject {
     private let schwelle: Float = -42
     private let schwelleBargeIn: Float = -27
 
-    func starten() throws {
+    /// sitzung = false: Ton gehört schon jemand anderem (Telefonat über CallKit - Hörmuschel statt Lautsprecher)
+    func starten(sitzung: Bool = true) throws {
         guard phase == .aus else { return }
-        HelferTon.einrichten()
+        if sitzung { HelferTon.einrichten() }
         let ein = motor.inputNode
         let format = ein.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else { throw NSError(domain: "NitraX", code: 3, userInfo: [NSLocalizedDescriptionKey: "Kein Mikrofon verfügbar"]) }

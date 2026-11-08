@@ -20,6 +20,7 @@ struct HelferAnsicht: View {
     @StateObject private var dauer = Dauergespraech()
     @AppStorage("helfer_freihand") private var freihand = false
     @State private var ar = false
+    @State private var tagebuch = false
 
     var body: some View {
         ZStack {
@@ -44,11 +45,6 @@ struct HelferAnsicht: View {
         }
         .overlay(alignment: .topTrailing) {
             VStack(spacing: 10) {
-                // 🥽 AR: Helfer ins Zimmer stellen
-                Button { ar = true } label: {
-                    Image(systemName: "arkit").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
-                }
-                .disabled(!bruecke.bereit)
                 // 👁 Live-Kamera als Augen an/aus
                 Button { augenAn.toggle() } label: {
                     Image(systemName: augenAn ? "eye.fill" : "eye.slash").frame(width: 20, height: 20).padding(10)
@@ -66,12 +62,14 @@ struct HelferAnsicht: View {
                 Button { kamera = true } label: {
                     Image(systemName: "camera.fill").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
                 }
-                // ⚙ Helfer anpassen
-                Button { einstellungen = true } label: {
-                    Image(systemName: "slider.horizontal.3").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
-                }
-                Button { neuLaden = UUID() } label: {
-                    Image(systemName: "arrow.clockwise").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
+                // ⋯ Mehr: AR, Tagebuch, Anpassen, Neu laden
+                Menu {
+                    Button { ar = true } label: { Label("Ins Zimmer stellen (AR)", systemImage: "arkit") }.disabled(!bruecke.bereit)
+                    Button { tagebuch = true } label: { Label("Unser Tagebuch", systemImage: "book.closed") }
+                    Button { einstellungen = true } label: { Label("Helfer anpassen", systemImage: "slider.horizontal.3") }
+                    Button { neuLaden = UUID() } label: { Label("Neu laden", systemImage: "arrow.clockwise") }
+                } label: {
+                    Image(systemName: "ellipsis").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
                 }
             }
             .padding(.trailing, 12).padding(.top, 58)
@@ -102,9 +100,10 @@ struct HelferAnsicht: View {
             }
         }
         .fullScreenCover(isPresented: $ar) {
-            ARHelferAnsicht { pose in await bruecke.arModell(pose) }
+            ARHelferAnsicht(laden: { pose in await bruecke.arModell(pose) }, spricht: { [weak dauer] in dauer?.helferZustand == "sprechen" })
         }
         .animation(.spring(duration: 0.3), value: augen.laeuft)
+        .sheet(isPresented: $tagebuch) { HelferTagebuch() }
         .sheet(isPresented: $einstellungen) {
             HelferEinstellungen { neuLaden = UUID() }
         }

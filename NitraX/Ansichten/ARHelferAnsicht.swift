@@ -1,6 +1,7 @@
 import SwiftUI
 import RealityKit
 import ARKit
+import Combine
 
 /// 🥽 AR: dein Helfer steht in deinem Zimmer - in Lebensgröße oder als kleine Figur auf dem Tisch. Die Helfer-Seite liefert
 /// die Figur in der aktuellen Pose (Netz + Texturen), RealityKit stellt sie auf eine erkannte Fläche.
@@ -84,6 +85,32 @@ final class ARSteuerung: ObservableObject {
     var figur: ModelEntity?
     weak var ansicht: ARView?
     private var anker: AnchorEntity?
+    private var takt: Cancellable?
+    private var zeit: Double = 0
+    var spricht: () -> Bool = { false }
+
+    /// 🫁 Leben: atmen, sanft wippen, sich zu dir drehen, beim Sprechen lebhafter (läuft pro Bild)
+    func lebenStarten() {
+        guard takt == nil, let v = ansicht else { return }
+        takt = v.scene.subscribe(to: SceneEvents.Update.self) { [weak self] e in
+            MainActor.assumeIsolated {
+                guard let self, let f = self.figur, f.parent != nil, let kamera = self.ansicht?.cameraTransform else { return }
+                self.zeit += e.deltaTime
+                let t = Float(self.zeit)
+                let basis: Float = self.lebensgross ? 1 : 0.22
+                let redet = self.spricht()
+                let atem = 1 + 0.012 * sin(t * 1.7) + (redet ? 0.01 * sin(t * 9) : 0)
+                f.scale = SIMD3(basis * (1 - (atem - 1) * 0.4), basis * atem, basis * (1 - (atem - 1) * 0.4))
+                // zu dir drehen (weich), leichtes Schwanken
+                let fp = f.position(relativeTo: nil)
+                let d = SIMD3<Float>(kamera.translation.x - fp.x, 0, kamera.translation.z - fp.z)
+                let ziel = atan2(d.x, d.z) + 0.06 * sin(t * 0.8)
+                let jetzt = f.orientation(relativeTo: nil)
+                let neu = simd_slerp(jetzt, simd_quatf(angle: ziel, axis: [0, 1, 0]), min(1, Float(e.deltaTime) * 2.5))
+                f.setOrientation(neu, relativeTo: nil)
+            }
+        }
+    }
 
     func setzen(_ f: ModelEntity) { figur = f; hinweis = "Tippe auf den Boden oder Tisch, um \(f.name.isEmpty ? "sie" : f.name) hinzustellen" }
 
@@ -105,8 +132,9 @@ final class ARSteuerung: ObservableObject {
         a.addChild(f)
         v.scene.addAnchor(a)
         anker = a
-        v.installGestures([.translation, .rotation, .scale], for: f)
+        v.installGestures([.translation, .scale], for: f)
         steht = true
+        lebenStarten()
         hinweis = ""
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
@@ -162,6 +190,7 @@ struct ARHelferView: UIViewRepresentable {
 struct ARHelferAnsicht: View {
     @Environment(\.dismiss) private var dismiss
     let laden: (String) async -> [String: Any]?
+    var spricht: () -> Bool = { false }
     @StateObject private var steuerung = ARSteuerung()
     @State private var pose = "stehen"
     @State private var laedt = true
@@ -205,7 +234,7 @@ struct ARHelferAnsicht: View {
                 Text(fehler).padding().background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14)).padding()
             }
         }
-        .task { await figurLaden() }
+        .task { steuerung.spricht = spricht; await figurLaden() }
         .statusBarHidden()
     }
 
@@ -222,7 +251,7 @@ struct ARHelferAnsicht: View {
             alt.removeFromParent()
             eltern.addChild(neu)
             steuerung.figur = neu
-            steuerung.ansicht?.installGestures([.translation, .rotation, .scale], for: neu)
+            steuerung.ansicht?.installGestures([.translation, .scale], for: neu)
         } else {
             steuerung.setzen(neu)
         }

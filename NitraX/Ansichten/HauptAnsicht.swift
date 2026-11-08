@@ -78,6 +78,7 @@ struct StudioAnsicht: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    BuehneKarte()
                     pcKarte
                     SiriTipView(intent: HelferGespraech(), isVisible: $siriTipp).siriTipViewStyle(.dark)
                     if !studio.stand.fremd.isEmpty { spielHinweis }

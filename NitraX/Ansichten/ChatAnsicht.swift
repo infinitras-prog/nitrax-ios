@@ -186,6 +186,7 @@ struct ChatAnsicht: View {
                     .focused($fokus)
                     .padding(.horizontal, 12).padding(.vertical, 9)
                     .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.08)))
+                DiktierKnopf(text: $eingabe).padding(.bottom, 6)
                 Button { senden() } label: {
                     Image(systemName: "arrow.up.circle.fill").font(.system(size: 32)).foregroundStyle(Farbe.verlauf)
                 }

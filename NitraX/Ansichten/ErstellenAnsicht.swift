@@ -15,6 +15,7 @@ struct ErstellenAnsicht: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    VorlagenLeiste()
                     Picker("Kategorie", selection: $kategorie) {
                         ForEach(kategorien, id: \.self) { k in Text((k.count > 2 ? k[2] + " " : "") + (k.count > 1 ? k[1] : k[0])).tag(k[0]) }
                     }

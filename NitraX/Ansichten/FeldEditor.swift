@@ -45,12 +45,15 @@ struct FeldEditor: View {
             switch feld.art {
             case "text":
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField(feld.platz ?? "", text: textBindung)
+                    HStack { TextField(feld.platz ?? "", text: textBindung); DiktierKnopf(text: textBindung) }
                     if feld.ki { automatikLeiste }
                 }
             case "lang":
                 VStack(alignment: .leading, spacing: 8) {
-                    TextField(feld.platz ?? "", text: textBindung, axis: .vertical).lineLimit(3...10)
+                    HStack(alignment: .top) {
+                        TextField(feld.platz ?? "", text: textBindung, axis: .vertical).lineLimit(3...10)
+                        DiktierKnopf(text: textBindung)
+                    }
                     if feld.ki { automatikLeiste }
                 }
             case "zahl":
