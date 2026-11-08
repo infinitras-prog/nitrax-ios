@@ -467,15 +467,30 @@ struct HelferWeb: UIViewRepresentable {
             guard augen.laeuft else {
                 return ["text": "deine Augen (die Handykamera) sind gerade AUS – du siehst ihn nicht und hast kein Bild von ihm; sag ihm, dass er sie mit dem Augen-Knopf rechts einschalten kann"]
             }
+            if art == "vorlage" {
+                // 📸 Nur ein Bild, auf dem wirklich jemand zu sehen ist: bis zu 3 s auf ein erkanntes Gesicht warten
+                var foto: Data?
+                for _ in 0..<15 {
+                    if let f = augen.verarbeitung.gesichtJPEG(alter: 1.5) { foto = f; break }
+                    try? await Task.sleep(for: .milliseconds(200))
+                }
+                guard let foto, !foto.isEmpty else {
+                    UINotificationFeedbackGenerator().notificationOccurred(.warning)
+                    return ["text": "auf dem Kamerabild ist gerade KEINE Person zu sehen (kein Gesicht erkannt) – lege KEINEN Auftrag an und rufe kein Werkzeug auf; "
+                            + "sag ihm freundlich, er soll sich gut sichtbar vor die Kamera stellen und es nochmal sagen"]
+                }
+                UIImpactFeedbackGenerator(style: .rigid).impactOccurred()          // Klick: Schnappschuss gemacht
+                guard let r = try? await client.hochladen("/api/chat/upload", daten: foto, dateiname: "kamera.jpg", typ: "image/jpeg"),
+                      let name = r["name"]?.text else {
+                    return ["text": "das Kamerabild kam gerade nicht beim PC an – du hast kein Bild von ihm, lege nichts an"]
+                }
+                return ["text": "das aktuelle Bild seiner Handykamera (Frontkamera, er selbst) ist angehängt – nutze es als Vorlage, wenn er sich selbst im Ergebnis haben möchte, und gib es mit dem Auftrag weiter",
+                        "bild": name]
+            }
             guard let bild = augen.verarbeitung.jpeg(kante: 1280) else { return ["text": "deine Handykamera liefert gerade kein Bild – du siehst ihn nicht"] }
             if bild.isEmpty { return ["text": "die Handykamera zeigt nur ein SCHWARZES Bild (Objektiv abgedeckt oder sehr dunkel) – du siehst ihn gerade nicht"] }
             var name: String?
             if let r = try? await client.hochladen("/api/chat/upload", daten: bild, dateiname: "kamera.jpg", typ: "image/jpeg") { name = r["name"]?.text }
-            if art == "vorlage" {
-                guard let name else { return ["text": "das Kamerabild kam gerade nicht beim PC an – du hast kein Bild von ihm"] }
-                return ["text": "das aktuelle Bild seiner Handykamera (Frontkamera, er selbst) ist angehängt – nutze es als Vorlage, wenn er sich selbst im Ergebnis haben möchte, und gib es mit dem Auftrag weiter",
-                        "bild": name]
-            }
             do {
                 let r = try await client.hochladen("/api/begleiter/kamera", daten: augen.verarbeitung.jpeg() ?? bild, dateiname: "blick.jpg", typ: "image/jpeg", felder: ["art": "beschreiben"])
                 let t = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)

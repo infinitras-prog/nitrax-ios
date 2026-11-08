@@ -84,7 +84,10 @@ final class AugenVerarbeitung: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     private var bild: CVPixelBuffer?
     private var zaehler = 0
     private let kontext = CIContext()
-    var gesichterSuchen = true
+    var gesichterSuchen = true                       // Blickkontakt (nur Frontkamera)
+    private var gesichtBild: CVPixelBuffer?          // 📸 letztes Bild MIT erkanntem Gesicht (für »Bild von mir«)
+    private var gesichtZeit = Date.distantPast
+    private var gesichtGroesse: CGFloat = 0
     /// x, y in -1…1 (x > 0 = zu deiner rechten Seite, y > 0 = oben) - wird auf dem Hauptthread gemeldet
     var blick: (@Sendable (Double, Double) -> Void)?
 
@@ -92,18 +95,34 @@ final class AugenVerarbeitung: NSObject, AVCaptureVideoDataOutputSampleBufferDel
         guard let pb = CMSampleBufferGetImageBuffer(sb) else { return }
         sperre.lock(); bild = pb; sperre.unlock()
         zaehler += 1
-        guard zaehler % 5 == 0, gesichterSuchen, let melden = blick else { return }           // ~6 Gesichtssuchen pro Sekunde reichen
+        guard zaehler % 5 == 0 else { return }
         let anfrage = VNDetectFaceRectanglesRequest()
         try? VNImageRequestHandler(cvPixelBuffer: pb, orientation: .up).perform([anfrage])
-        guard let g = anfrage.results?.max(by: { $0.boundingBox.width < $1.boundingBox.width }) else { return }
+        guard let g = anfrage.results?.filter({ $0.confidence > 0.6 }).max(by: { $0.boundingBox.width < $1.boundingBox.width }) else { return }
+        // Gesicht gesehen: dieses Bild als Schnappschuss merken (deutlich genug: mindestens 8 % der Bildbreite)
+        if g.boundingBox.width > 0.08 {
+            sperre.lock(); gesichtBild = pb; gesichtZeit = Date(); gesichtGroesse = g.boundingBox.width; sperre.unlock()
+        }
+        guard gesichterSuchen, let melden = blick else { return }
         let x = 1 - 2 * Double(g.boundingBox.midX), y = 2 * Double(g.boundingBox.midY) - 1
         DispatchQueue.main.async { melden(x, y) }
+    }
+
+    /// 📸 Schnappschuss mit erkanntem Gesicht (höchstens `alter` Sekunden alt) - nil, wenn gerade niemand zu sehen ist.
+    func gesichtJPEG(alter: TimeInterval = 1.5, kante: CGFloat = 1280) -> Data? {
+        sperre.lock(); let pb = gesichtBild, t = gesichtZeit; sperre.unlock()
+        guard let pb, Date().timeIntervalSince(t) <= alter else { return nil }
+        return jpeg(von: pb, kante: kante)
     }
 
     /// Aktuelles Kamerabild als JPEG (lange Seite höchstens `kante` Pixel) - oder nil, wenn es (fast) schwarz ist.
     func jpeg(kante: CGFloat = 768) -> Data? {
         sperre.lock(); let pb = bild; sperre.unlock()
         guard let pb else { return nil }
+        return jpeg(von: pb, kante: kante)
+    }
+
+    private func jpeg(von pb: CVPixelBuffer, kante: CGFloat) -> Data? {
         let ci = CIImage(cvPixelBuffer: pb)
         let s = min(1, kante / max(ci.extent.width, ci.extent.height))
         let klein = ci.transformed(by: CGAffineTransform(scaleX: s, y: s))
