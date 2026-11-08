@@ -12,6 +12,7 @@ struct AuftraegeAnsicht: View {
     @State private var filter: Filter = .alle
     @State private var suche = ""
     @State private var pfad = NavigationPath()
+    @AppStorage("auftraege_bibliothek") private var bibliothek = false     // 📚 oben umschaltbar
 
     private var liste: [Auftrag] {
         let q = suche.trimmingCharacters(in: .whitespaces).lowercased()
@@ -31,6 +32,10 @@ struct AuftraegeAnsicht: View {
 
     var body: some View {
         NavigationStack(path: $pfad) {
+            Group {
+            if bibliothek {
+                BibliothekAnsicht(suche: suche)
+            } else {
             List {
                 Picker("Filter", selection: $filter) {
                     ForEach(Filter.allCases) { Text($0.rawValue).tag($0) }
@@ -61,15 +66,26 @@ struct AuftraegeAnsicht: View {
                         }
                 }
             }
+            }
+            }
             .scrollContentBackground(.hidden)
             .nxHintergrund()
-            .searchable(text: $suche, prompt: "Suchen")
+            .searchable(text: $suche, prompt: bibliothek ? "Bibliothek durchsuchen" : "Suchen")
             .confirmationDialog("»\(loeschKandidat?.titel ?? "")« löschen? Die Dateien landen am PC im Papierkorb.",
                                 isPresented: Binding(get: { loeschKandidat != nil }, set: { if !$0 { loeschKandidat = nil } }), titleVisibility: .visible) {
                 Button("Löschen", role: .destructive) { if let a = loeschKandidat { Task { await studio.loeschen(a) } }; loeschKandidat = nil }
             }
-            .navigationTitle("Aufträge")
+            .navigationTitle(bibliothek ? "Bibliothek" : "Aufträge")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Picker("Ansicht", selection: $bibliothek.animation(.snappy)) {
+                        Text("Aufträge").tag(false)
+                        Text("Bibliothek").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 220)
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink { GalerieAnsicht() } label: { Label("Offline-Galerie", systemImage: "photo.stack") }
                 }
