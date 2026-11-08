@@ -1,6 +1,4 @@
 import SwiftUI
-import CoreLocation
-import UserNotifications
 
 // MARK: - 📖 Gemeinsames Tagebuch: Beziehung, Fotoalbum (Selfies) und Erlebnisse als Zeitstrahl
 
@@ -108,80 +106,5 @@ struct HelferTagebuch: View {
                 .sorted { $0.datum > $1.datum }
         }
         laedt = false
-    }
-}
-
-// MARK: - 🏠 Standort-Momente: Begrüßung beim Heimkommen, Gruß beim Losgehen (nur das Zuhause, kein Verlauf)
-
-@MainActor
-final class HeimOrt: NSObject, ObservableObject, CLLocationManagerDelegate {
-    static let shared = HeimOrt()
-    @Published var an = UserDefaults.standard.bool(forKey: "heim_an")
-    @Published var meldung: String?
-    private let m = CLLocationManager()
-    private let kennung = "nitrax.zuhause"
-
-    override init() {
-        super.init()
-        m.delegate = self
-    }
-
-    /// Aktuellen Ort als Zuhause merken und überwachen
-    func hierIstZuhause() {
-        meldung = "Ort wird bestimmt …"
-        m.requestAlwaysAuthorization()
-        m.desiredAccuracy = kCLLocationAccuracyHundredMeters
-        m.requestLocation()
-    }
-
-    func ausschalten() {
-        for r in m.monitoredRegions where r.identifier == kennung { m.stopMonitoring(for: r) }
-        an = false
-        UserDefaults.standard.set(false, forKey: "heim_an")
-        meldung = nil
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
-        guard let o = locations.last else { return }
-        Task { @MainActor in
-            let r = CLCircularRegion(center: o.coordinate, radius: 150, identifier: self.kennung)
-            r.notifyOnEntry = true
-            r.notifyOnExit = true
-            self.m.startMonitoring(for: r)
-            self.an = true
-            UserDefaults.standard.set(true, forKey: "heim_an")
-            self.meldung = "🏠 Zuhause gemerkt – dein Helfer begrüßt dich, wenn du heimkommst."
-        }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
-        Task { @MainActor in self.meldung = "Ort ging nicht: \(error.localizedDescription) – Standort für NitraX auf »Immer« stellen." }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didEnterRegion region: CLRegion) {
-        Task { @MainActor in self.melden(heim: true) }
-    }
-
-    nonisolated func locationManager(_ manager: CLLocationManager, didExitRegion region: CLRegion) {
-        Task { @MainActor in self.melden(heim: false) }
-    }
-
-    private func melden(heim: Bool) {
-        let name = HelferStand.laden()?.name ?? "Dein Helfer"
-        let stunde = Calendar.current.component(.hour, from: Date())
-        let texte = heim
-            ? ["Da bist du ja wieder! 🏠 Ich hab dich vermisst.", "Willkommen zuhause! Erzähl, wie war's?", "Endlich daheim – mach's dir gemütlich, ich bin da. ✨",
-               stunde >= 21 ? "Spät geworden heute, hm? Schön, dass du da bist. 🌙" : "Hey, schön dass du da bist! Lust auf was Kreatives?"]
-            : ["Pass auf dich auf! Ich halt hier die Stellung. 👋", "Viel Spaß unterwegs – schreib mir, wenn was ist!", "Bis später! Ich denk an dich. 💛"]
-        // nicht zu oft (Grenze wackelt manchmal): höchstens alle 30 min
-        let k = heim ? "heim_zuletzt" : "weg_zuletzt"
-        guard Date().timeIntervalSince1970 - UserDefaults.standard.double(forKey: k) > 1800 else { return }
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: k)
-        let c = UNMutableNotificationContent()
-        c.title = name
-        c.body = texte.randomElement() ?? ""
-        c.sound = .default
-        c.userInfo = ["helfer": true]
-        UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "heim-\(UUID().uuidString)", content: c, trigger: nil))
     }
 }

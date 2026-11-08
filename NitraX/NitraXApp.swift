@@ -6,7 +6,6 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         Benachrichtigungen.kategorienEinrichten()
         AnrufDienst.shared.starten()                   // 📞 Helfer-Anrufe (VoIP)
-        if UserDefaults.standard.bool(forKey: "heim_an") { _ = HeimOrt.shared }      // 🏠 Heimkehr-Begrüßung
         return true
     }
 

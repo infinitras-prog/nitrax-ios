@@ -9,7 +9,6 @@ struct HelferEinstellungen: View {
     var gespeichert: () -> Void
 
     @AppStorage("helfer_augen") private var augenIPhone = true
-    @ObservedObject private var heim = HeimOrt.shared
     @State private var laedt = true
     @State private var speichert = false
     @State private var fehler: String?
@@ -68,17 +67,6 @@ struct HelferEinstellungen: View {
                         Toggle("Mimik spiegeln", isOn: schalter("mimik"))
                         Toggle("Überraschungen", isOn: schalter("ueberraschungen"))
                         Toggle("Beziehung darf romantisch werden", isOn: schalter("romanze"))
-                    }
-                    Section {
-                        if heim.an {
-                            Label("Begrüßt dich, wenn du heimkommst", systemImage: "house.fill").foregroundStyle(Farbe.gut)
-                            Button("Zuhause vergessen", role: .destructive) { heim.ausschalten() }
-                        } else {
-                            Button { heim.hierIstZuhause() } label: { Label("Hier ist mein Zuhause", systemImage: "location.fill") }
-                        }
-                        if let m = heim.meldung { Text(m).font(.caption).foregroundStyle(.secondary) }
-                    } header: { Text("🏠 Heimkommen") } footer: {
-                        Text("Dein Helfer begrüßt dich beim Heimkommen und verabschiedet dich beim Losgehen. Nur dein Zuhause wird erkannt – kein Standortverlauf, nichts geht an den PC.")
                     }
                     Section {
                         Toggle("👁 iPhone-Kamera als Augen", isOn: $augenIPhone)
