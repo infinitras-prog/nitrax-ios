@@ -22,7 +22,7 @@ struct HauptAnsicht: View {
                 .tabItem { Label("Chat", systemImage: "bubble.left.and.text.bubble.right") }
                 .tag(Navigation.Reiter.chat)
             HelferAnsicht()
-                .tabItem { Label("Helfer", systemImage: "person.crop.circle.badge.sparkles") }
+                .tabItem { Label("Helfer", systemImage: "person.wave.2.fill") }
                 .tag(Navigation.Reiter.helfer)
         }
         .overlay(alignment: .top) {

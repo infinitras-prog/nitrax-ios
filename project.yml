@@ -41,7 +41,7 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIBackgroundModes: [fetch, processing]
         BGTaskSchedulerPermittedIdentifiers: [de.infinitras.nitrax.abholen]
-        NSCameraUsageDescription: Zum Scannen des QR-Codes aus NitraX AI Studio und für Fotos als Startbild.
+        NSCameraUsageDescription: Zum Scannen des QR-Codes, für Fotos als Startbild und damit dein Helfer dich sehen kann (nur wenn du die Augen einschaltest, nichts wird gespeichert).
         NSMicrophoneUsageDescription: Zum Aufnehmen von Melodien und zum Sprechen mit deinem Helfer.
         NSPhotoLibraryAddUsageDescription: Damit du fertige Bilder und Videos in deine Fotos sichern kannst.
         NSLocalNetworkUsageDescription: NitraX verbindet sich mit deinem PC im Heimnetz (NitraX AI Studio).

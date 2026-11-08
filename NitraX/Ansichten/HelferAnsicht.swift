@@ -1,6 +1,7 @@
 import SwiftUI
 import WebKit
 import AVFoundation
+import CoreMotion
 
 /// 🧍 Der 3D-Helfer - Figur, Touch-Gesten, Gespräch, Spiele, Listen, Wecker (die Helfer-Ansicht des PCs, eingebettet).
 /// Das Mikrofon macht die App selbst: in Webansichten sperrt iOS es ohne HTTPS - so geht Sprechen auch im WLAN.
@@ -13,12 +14,15 @@ struct HelferAnsicht: View {
     @State private var neuLaden = UUID()
     @StateObject private var bruecke = HelferBruecke()
     @State private var kamera = false
+    @State private var einstellungen = false
+    @StateObject private var augen = HelferAugen()
+    @AppStorage("helfer_augen") private var augenAn = true
 
     var body: some View {
         ZStack {
             Hintergrund()
             if let url = adresse, let c = studio.client {
-                HelferWeb(url: url, client: c, bruecke: bruecke).id(neuLaden).ignoresSafeArea(edges: .bottom)
+                HelferWeb(url: url, client: c, bruecke: bruecke, augen: augen).id(neuLaden).ignoresSafeArea(edges: .bottom)
             } else {
                 ContentUnavailableView("Nicht verbunden", systemImage: "wifi.exclamationmark")
             }
@@ -36,22 +40,55 @@ struct HelferAnsicht: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            HStack(spacing: 10) {
-                // 📷 Foto für den Helfer: er schaut es sich an und antwortet (Frontkamera = »Wie sehe ich aus?«)
+            VStack(spacing: 10) {
+                // 👁 Live-Kamera als Augen an/aus
+                Button { augenAn.toggle() } label: {
+                    Image(systemName: augenAn ? "eye.fill" : "eye.slash").frame(width: 20, height: 20).padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(augen.laeuft ? Color.green.opacity(0.8) : .clear, lineWidth: 1.5))
+                }
+                // 📷 Foto für den Helfer: er schaut es sich an und antwortet
                 Button { kamera = true } label: {
-                    Image(systemName: "camera.fill").padding(10).background(.ultraThinMaterial, in: Circle())
+                    Image(systemName: "camera.fill").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
+                }
+                // ⚙ Helfer anpassen
+                Button { einstellungen = true } label: {
+                    Image(systemName: "slider.horizontal.3").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
                 }
                 Button { neuLaden = UUID() } label: {
-                    Image(systemName: "arrow.clockwise").padding(10).background(.ultraThinMaterial, in: Circle())
+                    Image(systemName: "arrow.clockwise").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
                 }
             }
-            .padding(.trailing, 12).padding(.top, 52)
-            .opacity(0.85)
+            .padding(.trailing, 12).padding(.top, 58)
+            .opacity(0.88)
+        }
+        .overlay(alignment: .topLeading) {
+            if augen.laeuft {
+                KameraVorschau(sitzung: augen.sitzung)
+                    .frame(width: 66, height: 88)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.35), lineWidth: 1))
+                    .overlay(alignment: .bottomTrailing) { Circle().fill(.green).frame(width: 8, height: 8).padding(6) }
+                    .padding(.leading, 12).padding(.top, 58)
+                    .allowsHitTesting(false)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.3), value: augen.laeuft)
+        .sheet(isPresented: $einstellungen) {
+            HelferEinstellungen { neuLaden = UUID() }
         }
         .fullScreenCover(isPresented: $kamera) {
             KameraAufnahme { d in Task { await fotoSenden(d) } }.ignoresSafeArea()
         }
-        .onAppear { auftraegeUebernehmen() }
+        .onAppear {
+            auftraegeUebernehmen()
+            HelferTon.einrichten()
+            if augenAn { Task { await augen.starten() } }
+        }
+        .onDisappear { augen.stoppen() }
+        .onChange(of: augenAn) { _, an in if an { Task { await augen.starten() } } else { augen.stoppen() } }
+        .onChange(of: augen.fehler) { _, f in if let f { studio.meldung = f; augen.fehler = nil } }
         .onChange(of: navigation.helferMeldung) { _, _ in auftraegeUebernehmen() }
         .onChange(of: navigation.helferZuhoeren) { _, _ in auftraegeUebernehmen() }
     }
@@ -134,6 +171,7 @@ struct HelferWeb: UIViewRepresentable {
     let url: URL
     let client: NXClient
     let bruecke: HelferBruecke
+    let augen: HelferAugen
 
     /// Öffnet den Helfer, blendet die übrige Handy-Seite aus und verbindet 🎤 mit dem nativen Mikrofon.
     /// (Swift-Mehrzeilentext: im JS KEINE Backslashes verwenden.)
@@ -177,6 +215,21 @@ struct HelferWeb: UIViewRepresentable {
         var i = document.querySelector('.nxhh-unten input'), s = document.querySelector('.nxhh [data-a="senden"]');
         if (i && s) { i.value = t; s.click(); }
       };
+      // 👁 Seh-Fragen beantwortet die App mit der Frontkamera (der PC beschreibt das Bild)
+      var SEH = ['siehst du', 'siehst mich', 'kannst du mich sehen', 'kamera', 'wie sehe ich', 'wie seh ich', 'wie sehe ich aus',
+        'was habe ich', 'was hab ich', 'was halte ich', 'was trage ich', 'erkennst du mich', 'schau mal', 'schau mich', 'guck mal',
+        'guck mich', 'sieh mal', 'sieh mich', 'zeig dir', 'vor dir', 'deine augen', 'wie findest du mein', 'mein outfit'];
+      window.nxAugen = { kontext: async function (frage) {
+        var q = String(frage || '').toLowerCase();
+        if (!SEH.some(function (w) { return q.indexOf(w) >= 0; })) return null;
+        try { var t = await window.webkit.messageHandlers.nxAuge.postMessage(q); return t ? {text: t, bilder: []} : null; }
+        catch (e) { return null; }
+      }};
+      // 📳 Vibration der Seite (Spiele, Touch) -> echte iPhone-Haptik
+      navigator.vibrate = function (m) {
+        try { window.webkit.messageHandlers.nxHaptik.postMessage(Array.isArray(m) ? Math.ceil(m.length / 2) : 1); } catch (e) {}
+        return true;
+      };
       // 📷 Foto aus der App: hängt an die nächste Frage an den Helfer (der Helfer schickt seine Fragen per fetch)
       window.__nxBilder = [];
       var altFetch = window.fetch;
@@ -200,7 +253,7 @@ struct HelferWeb: UIViewRepresentable {
     })();
     """
 
-    func makeCoordinator() -> Koordinator { Koordinator(client: client, bruecke: bruecke) }
+    func makeCoordinator() -> Koordinator { Koordinator(client: client, bruecke: bruecke, augen: augen) }
 
     func makeUIView(context: Context) -> WKWebView {
         let k = WKWebViewConfiguration()
@@ -210,6 +263,9 @@ struct HelferWeb: UIViewRepresentable {
         inhalt.addUserScript(WKUserScript(source: HelferWeb.skript, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxMikro")
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxHelfer")
+        inhalt.add(SchwacherHandler(context.coordinator), name: "nxHaptik")
+        let koordinator = context.coordinator
+        inhalt.addScriptMessageHandler(AntwortHandler { frage in await koordinator.sehen(frage) }, contentWorld: .page, name: "nxAuge")
         k.userContentController = inhalt
         let w = WKWebView(frame: .zero, configuration: k)
         w.isOpaque = false
@@ -233,6 +289,10 @@ struct HelferWeb: UIViewRepresentable {
         coordinator.zuhoerer.abbrechen()
         w.configuration.userContentController.removeScriptMessageHandler(forName: "nxMikro")
         w.configuration.userContentController.removeScriptMessageHandler(forName: "nxHelfer")
+        w.configuration.userContentController.removeScriptMessageHandler(forName: "nxHaptik")
+        w.configuration.userContentController.removeScriptMessageHandler(forName: "nxAuge", contentWorld: .page)
+        coordinator.bewegungAus()
+        coordinator.augen.verarbeitung.blick = nil
     }
 
     @MainActor
@@ -240,12 +300,18 @@ struct HelferWeb: UIViewRepresentable {
         weak var web: WKWebView?
         let client: NXClient
         let bruecke: HelferBruecke
+        let augen: HelferAugen
         let zuhoerer = Zuhoerer()
+        private let bewegung = CMMotionManager()
+        private var schuettelT = Date.distantPast
+        private let haptik = UIImpactFeedbackGenerator(style: .light)
 
-        init(client: NXClient, bruecke: HelferBruecke) {
+        init(client: NXClient, bruecke: HelferBruecke, augen: HelferAugen) {
             self.client = client
             self.bruecke = bruecke
+            self.augen = augen
             super.init()
+            haptik.prepare()
             zuhoerer.fertig = { [weak self] datei in Task { await self?.verstehen(datei) } }
             zuhoerer.zustand = { [weak self] an, text in self?.zustand(an, text) }
         }
@@ -256,10 +322,16 @@ struct HelferWeb: UIViewRepresentable {
             Task { @MainActor in
                 if name == "nxHelfer" {
                     switch befehl {
-                    case "bereit": self.bruecke.fertig()
+                    case "bereit":
+                        self.bruecke.fertig()
+                        self.bewegungAn()
+                        self.blickVerbinden()
                     case "keinhelfer": self.bruecke.fehler = "Die Helfer-Seite vom PC kam nicht vollständig an. Läuft NitraX AI Studio mit eingeschaltetem Helfer?"
                     default: self.bruecke.fehler = "Die 3D-Figur ließ sich nicht anzeigen. Tippe auf »Nochmal«."
                     }
+                } else if name == "nxHaptik" {
+                    let n = max(1, min(6, Int(message.body as? Int ?? (message.body as? NSNumber)?.intValue ?? 1)))
+                    for i in 0..<n { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.075) { self.haptik.impactOccurred(intensity: 0.7) } }
                 } else if befehl == "start" { await self.zuhoerer.starten() } else { self.zuhoerer.stoppen() }
             }
         }
@@ -275,6 +347,47 @@ struct HelferWeb: UIViewRepresentable {
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             bruecke.neu()
             webView.reload()                                  // iOS hat die Seite (Speicher) beendet: neu laden statt schwarz
+        }
+
+        /// 📳 Schütteln -> schwindelig bzw. würfeln (Beschleunigung > ~2,3 g)
+        func bewegungAn() {
+            guard bewegung.isAccelerometerAvailable, !bewegung.isAccelerometerActive else { return }
+            bewegung.accelerometerUpdateInterval = 1.0 / 30
+            bewegung.startAccelerometerUpdates(to: .main) { [weak self] d, _ in
+                guard let self, let a = d?.acceleration else { return }
+                if (a.x * a.x + a.y * a.y + a.z * a.z).squareRoot() > 2.3, Date().timeIntervalSince(self.schuettelT) > 1.5 {
+                    self.schuettelT = Date()
+                    self.web?.evaluateJavaScript("window.nxHandyHelfer && window.nxHandyHelfer.geschuettelt && window.nxHandyHelfer.geschuettelt()", completionHandler: nil)
+                }
+            }
+        }
+
+        func bewegungAus() { if bewegung.isAccelerometerActive { bewegung.stopAccelerometerUpdates() } }
+
+        /// 👁 Gesicht im Kamerabild -> sie schaut dich an
+        func blickVerbinden() {
+            augen.verarbeitung.blick = { [weak self] x, y in
+                Task { @MainActor in
+                    self?.web?.evaluateJavaScript(String(format: "window.nxHandyHelfer && window.nxHandyHelfer.blick && window.nxHandyHelfer.blick(%.3f, %.3f)", x, y),
+                                                  completionHandler: nil)
+                }
+            }
+        }
+
+        /// 👁 Seh-Frage: aktuelles Kamerabild an den PC, der beschreibt es - ehrlicher Befund, wenn die Augen aus sind
+        func sehen(_ frage: String) async -> String {
+            guard augen.laeuft else {
+                return "deine Augen (die Handykamera) sind gerade AUS – du siehst ihn nicht; sag ihm, dass er sie mit dem Augen-Knopf rechts einschalten kann"
+            }
+            guard let bild = augen.verarbeitung.jpeg() else { return "deine Handykamera liefert gerade kein Bild – du siehst ihn nicht" }
+            if bild.isEmpty { return "die Handykamera zeigt nur ein SCHWARZES Bild (Objektiv abgedeckt oder sehr dunkel) – du siehst ihn gerade nicht" }
+            do {
+                let r = try await client.hochladen("/api/begleiter/kamera", daten: bild, dateiname: "blick.jpg", typ: "image/jpeg", felder: ["art": "beschreiben"])
+                let t = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return t.isEmpty ? "deine Handykamera liefert gerade kein klares Bild" : "durch die Handykamera (Frontkamera, er hält das Handy) siehst du: " + t
+            } catch {
+                return "das Kamerabild kam gerade nicht beim PC an – du siehst ihn nicht"
+            }
         }
 
         private func zustand(_ an: Bool, _ text: String) {
@@ -307,6 +420,28 @@ struct HelferWeb: UIViewRepresentable {
     }
 }
 
+/// Nachricht mit Antwort (JS: `await window.webkit.messageHandlers.nxAuge.postMessage(…)`)
+final class AntwortHandler: NSObject, WKScriptMessageHandlerWithReply {
+    let arbeit: @MainActor (String) async -> String
+    init(_ a: @escaping @MainActor (String) async -> String) { arbeit = a }
+    func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
+        let frage = message.body as? String ?? ""
+        Task { @MainActor in replyHandler(await arbeit(frage), nil) }
+    }
+}
+
+/// 🔊 Ton des Helfers: EINE feste Audio-Sitzung (Abspielen + Mikrofon, Lautsprecher) - früher schaltete jede Aufnahme die
+/// Kategorie um, das unterbrach laufende Sprache kurz (abgehackt). Lautlos-Schalter stummt den Helfer nicht.
+enum HelferTon {
+    static func einrichten() {
+        let s = AVAudioSession.sharedInstance()
+        if s.category != .playAndRecord || !s.categoryOptions.contains(.defaultToSpeaker) {
+            try? s.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP, .allowBluetooth])
+        }
+        try? s.setActive(true)
+    }
+}
+
 /// WKUserContentController hält seine Handler fest - so entsteht kein Kreis mit dem Koordinator.
 @MainActor
 final class SchwacherHandler: NSObject, WKScriptMessageHandler {
@@ -334,9 +469,7 @@ final class Zuhoerer: NSObject {
             zustand?(false, "Mikrofon nicht erlaubt – in den iPhone-Einstellungen bei NitraX einschalten")
             return
         }
-        let s = AVAudioSession.sharedInstance()
-        try? s.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
-        try? s.setActive(true)
+        HelferTon.einrichten()                                 // ändert nichts, wenn schon richtig (kein Ton-Abriss)
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("helfer-\(UUID().uuidString.prefix(6)).wav")
         let einst: [String: Any] = [AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16000, AVNumberOfChannelsKey: 1,
                                     AVLinearPCMBitDepthKey: 16, AVLinearPCMIsFloatKey: false, AVLinearPCMIsBigEndianKey: false]
