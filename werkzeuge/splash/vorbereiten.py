@@ -2,7 +2,7 @@
 -Animationen auf die Simulationszeit gezogen. Die Seite selbst bleibt unverändert."""
 import os
 HIER = os.path.dirname(os.path.abspath(__file__))
-s = open(r"C:\Users\infin\Desktop\Claude\NitraX-iOS\NitraX\Splash\splash.html", encoding="utf-8").read()
+s = open(os.path.join(HIER, "splash_quelle.html"), encoding="utf-8").read()
 
 kopf = """<script>
 (function(){var a=20261108;Math.random=function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);
