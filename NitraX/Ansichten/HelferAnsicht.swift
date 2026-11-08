@@ -17,6 +17,9 @@ struct HelferAnsicht: View {
     @State private var einstellungen = false
     @StateObject private var augen = HelferAugen()
     @AppStorage("helfer_augen") private var augenAn = true
+    @StateObject private var dauer = Dauergespraech()
+    @AppStorage("helfer_freihand") private var freihand = false
+    @State private var ar = false
 
     var body: some View {
         ZStack {
@@ -41,6 +44,17 @@ struct HelferAnsicht: View {
         }
         .overlay(alignment: .topTrailing) {
             VStack(spacing: 10) {
+                // 🎙 Freihändig: einfach losreden, ins Wort fallen
+                Button { freihand.toggle() } label: {
+                    Image(systemName: freihand ? "waveform.circle.fill" : "waveform.circle").frame(width: 20, height: 20).padding(10)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay(Circle().stroke(Color.pink.opacity(freihand ? Double(0.35 + dauer.pegel * 0.65) : 0), lineWidth: 2))
+                }
+                // 🥽 AR: Helfer ins Zimmer stellen
+                Button { ar = true } label: {
+                    Image(systemName: "arkit").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
+                }
+                .disabled(!bruecke.bereit)
                 // 👁 Live-Kamera als Augen an/aus
                 Button { augenAn.toggle() } label: {
                     Image(systemName: augenAn ? "eye.fill" : "eye.slash").frame(width: 20, height: 20).padding(10)
@@ -74,6 +88,17 @@ struct HelferAnsicht: View {
                     .transition(.scale.combined(with: .opacity))
             }
         }
+        .overlay(alignment: .bottom) {
+            if freihand && dauer.phase != .aus {
+                Label(dauer.phase == .hoert ? "Ich höre …" : dauer.phase == .versteht ? "verstehe …" : "Freihändig – sprich einfach",
+                      systemImage: dauer.phase == .hoert ? "waveform" : "ear")
+                    .font(.caption.weight(.medium)).padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(.ultraThinMaterial, in: Capsule()).padding(.bottom, 96).allowsHitTesting(false)
+            }
+        }
+        .fullScreenCover(isPresented: $ar) {
+            ARHelferAnsicht { pose in await bruecke.arModell(pose) }
+        }
         .animation(.spring(duration: 0.3), value: augen.laeuft)
         .sheet(isPresented: $einstellungen) {
             HelferEinstellungen { neuLaden = UUID() }
@@ -86,7 +111,9 @@ struct HelferAnsicht: View {
             HelferTon.einrichten()
             if augenAn { Task { await augen.starten() } }
         }
-        .onDisappear { augen.stoppen() }
+        .onDisappear { augen.stoppen(); dauer.stoppen() }
+        .onChange(of: freihand) { _, an in freihandSchalten(an) }
+        .onChange(of: bruecke.bereit) { _, b in if b { freihandSchalten(freihand) } }
         .onChange(of: augenAn) { _, an in if an { Task { await augen.starten() } } else { augen.stoppen() } }
         .onChange(of: augen.fehler) { _, f in if let f { studio.meldung = f; augen.fehler = nil } }
         .onChange(of: navigation.helferMeldung) { _, _ in auftraegeUebernehmen() }
@@ -113,6 +140,30 @@ struct HelferAnsicht: View {
         } catch { studio.meldung = error.localizedDescription }
     }
 
+    /// 🎙 Dauergespräch an/aus - erkannter Satz geht an den Helfer, Reinsprechen macht ihn still
+    private func freihandSchalten(_ an: Bool) {
+        guard an, bruecke.bereit, let c = studio.client else { dauer.stoppen(); return }
+        bruecke.dauer = dauer
+        dauer.insWortGefallen = { [weak bruecke] in
+            bruecke?.js("window.nxHandyHelfer && window.nxHandyHelfer.unterbrechen && window.nxHandyHelfer.unterbrechen()")
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        }
+        dauer.satzFertig = { [weak bruecke, weak dauer] wav in
+            Task { @MainActor in
+                defer { dauer?.weiter() }
+                guard let r = try? await c.hochladen("/api/anruf/hoeren", daten: wav, dateiname: "freihand.wav", typ: "audio/wav", felder: ["sprache": "German"]) else { return }
+                let text = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard text.count > 1, let lit = (try? String(data: JSONEncoder().encode(text), encoding: .utf8)) ?? nil else { return }
+                bruecke?.js("window.nxIOSText && window.nxIOSText(\(lit))")
+            }
+        }
+        Task {
+            guard await AVAudioApplication.requestRecordPermission() else { studio.meldung = "Mikrofon ist für NitraX nicht erlaubt"; freihand = false; return }
+            do { try dauer.starten(); UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+            catch { studio.meldung = error.localizedDescription; freihand = false }
+        }
+    }
+
     /// Mitteilung angetippt (der Helfer sagt sie dir) bzw. »Sprich mit NitraX« (sofort zuhören)
     private func auftraegeUebernehmen() {
         if let m = navigation.helferMeldung {
@@ -131,6 +182,7 @@ struct HelferAnsicht: View {
 final class HelferBruecke: ObservableObject {
     weak var web: WKWebView?
     weak var koordinator: HelferWeb.Koordinator?
+    weak var dauer: Dauergespraech?
     @Published var bereit = false
     @Published var fehler: String?
     private var wartend: [() -> Void] = []
@@ -153,6 +205,13 @@ final class HelferBruecke: ObservableObject {
         let f = (try? String(data: JSONEncoder().encode(frage), encoding: .utf8)) ?? nil
         guard let n, let f else { return }
         wennBereit { [weak self] in self?.js("window.nxIOSBild && window.nxIOSBild(\(n), \(f))") }
+    }
+
+    /// 🥽 Figur in der gewählten Pose als Netz + Texturen (für RealityKit)
+    func arModell(_ pose: String) async -> [String: Any]? {
+        guard let w = web, bereit else { return nil }
+        let r = try? await w.callAsyncJavaScript("return await window.nxHandyHelfer.arModell(pose)", arguments: ["pose": pose], contentWorld: .page)
+        return r as? [String: Any]
     }
 
     func meldung(_ m: Int) {
@@ -273,6 +332,7 @@ struct HelferWeb: UIViewRepresentable {
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxMikro")
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxHelfer")
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxHaptik")
+        inhalt.add(SchwacherHandler(context.coordinator), name: "nxZustand")
         let koordinator = context.coordinator
         inhalt.addScriptMessageHandler(AntwortHandler { art, frage in await koordinator.sehen(art, frage) }, contentWorld: .page, name: "nxAuge")
         k.userContentController = inhalt
@@ -299,6 +359,7 @@ struct HelferWeb: UIViewRepresentable {
         w.configuration.userContentController.removeScriptMessageHandler(forName: "nxMikro")
         w.configuration.userContentController.removeScriptMessageHandler(forName: "nxHelfer")
         w.configuration.userContentController.removeScriptMessageHandler(forName: "nxHaptik")
+        w.configuration.userContentController.removeScriptMessageHandler(forName: "nxZustand")
         w.configuration.userContentController.removeScriptMessageHandler(forName: "nxAuge", contentWorld: .page)
         coordinator.bewegungAus()
         coordinator.augen.verarbeitung.blick = nil
@@ -338,9 +399,14 @@ struct HelferWeb: UIViewRepresentable {
                     case "keinhelfer": self.bruecke.fehler = "Die Helfer-Seite vom PC kam nicht vollständig an. Läuft NitraX AI Studio mit eingeschaltetem Helfer?"
                     default: self.bruecke.fehler = "Die 3D-Figur ließ sich nicht anzeigen. Tippe auf »Nochmal«."
                     }
+                } else if name == "nxZustand" {
+                    self.bruecke.dauer?.helferZustand = befehl
                 } else if name == "nxHaptik" {
                     let n = max(1, min(6, Int(message.body as? Int ?? (message.body as? NSNumber)?.intValue ?? 1)))
                     for i in 0..<n { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.075) { self.haptik.impactOccurred(intensity: 0.7) } }
+                } else if let d = self.bruecke.dauer, d.phase != .aus {
+                    d.stoppen()                                    // 🎤 tippen während Freihand = Freihand aus
+                    UserDefaults.standard.set(false, forKey: "helfer_freihand")
                 } else if befehl == "start" { await self.zuhoerer.starten() } else { self.zuhoerer.stoppen() }
             }
         }

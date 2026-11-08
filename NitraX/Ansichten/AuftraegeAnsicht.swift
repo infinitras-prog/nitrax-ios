@@ -61,6 +61,11 @@ struct AuftraegeAnsicht: View {
             .nxHintergrund()
             .searchable(text: $suche, prompt: "Suchen")
             .navigationTitle("Aufträge")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    NavigationLink { GalerieAnsicht() } label: { Label("Offline-Galerie", systemImage: "photo.stack") }
+                }
+            }
             .refreshable { await studio.aktualisieren() }
             .navigationDestination(for: Auftrag.self) { AuftragDetail(auftrag: $0) }
             .onChange(of: navigation.auftragZiel) { _, id in springen(id) }

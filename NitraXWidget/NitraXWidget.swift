@@ -187,6 +187,8 @@ struct StandWidget: Widget {
 struct NitraXWidgets: WidgetBundle {
     var body: some Widget {
         StandWidget()
+        HelferWidget()
         AuftragLiveWidget()
+        HelferSteuerung()
     }
 }

@@ -20,6 +20,22 @@ struct ErstellenAnsicht: View {
                     }
                     .pickerStyle(.segmented)
 
+                    if kategorie == "video" {
+                        NavigationLink { StoryboardListe() } label: {
+                            HStack(spacing: 12) {
+                                Text("🎞").font(.system(size: 26)).frame(width: 44, height: 44).background(Circle().fill(Farbe.akzent.opacity(0.16)))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Storyboard-Editor").font(.subheadline.weight(.semibold))
+                                    Text("Kurzfilm Szene für Szene planen – Ort, Handlung, Dialog, Kamera, Figuren").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                            }
+                            .karte()
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     if studio.workflows == nil {
                         ProgressView("Workflows werden geladen …").padding(.top, 40)
                     }

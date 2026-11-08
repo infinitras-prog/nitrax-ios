@@ -14,7 +14,9 @@ import base64, json, os, subprocess, sys, time, urllib.error, urllib.request
 import jwt  # PyJWT (auf dem Build-Rechner installiert)
 
 API = "https://api.appstoreconnect.apple.com/v1"
-BUNDLES = {"APP": "de.infinitras.nitrax", "WIDGET": "de.infinitras.nitrax.widget", "TEILEN": "de.infinitras.nitrax.teilen"}
+BUNDLES = {"APP": "de.infinitras.nitrax", "WIDGET": "de.infinitras.nitrax.widget", "TEILEN": "de.infinitras.nitrax.teilen",
+           "MITTEILUNG": "de.infinitras.nitrax.mitteilung"}
+NAMEN = {"MITTEILUNG": "NitraX Mitteilungen"}         # App-IDs, die der Lauf selbst anlegt (ohne besondere Fähigkeiten)
 TMP = os.environ.get("RUNNER_TEMP", "/tmp")
 ORDNER = os.path.join(TMP, "signatur")
 LISTE = os.path.join(ORDNER, "angelegt.json")
@@ -107,6 +109,11 @@ def einrichten():
     for kurz, bundle in BUNDLES.items():
         treffer = [b for b in api("GET", "/bundleIds?filter[identifier]=%s&limit=50" % bundle).get("data", [])
                    if b["attributes"]["identifier"] == bundle and b["attributes"].get("platform") in ("IOS", "UNIVERSAL")]
+        if not treffer and kurz in NAMEN:              # neue Erweiterung: App-ID selbst anlegen
+            treffer = [api("POST", "/bundleIds", {"data": {"type": "bundleIds", "attributes": {
+                "identifier": bundle, "name": NAMEN[kurz], "platform": "IOS"}}})["data"]]
+            treffer[0].setdefault("attributes", {})["identifier"] = bundle
+            print("App-ID angelegt:", bundle)
         if not treffer:
             raise SystemExit("::error::App-ID %s fehlt im Entwicklerportal" % bundle)
         name = "NitraX CI %s %s" % (lauf, kurz.lower())

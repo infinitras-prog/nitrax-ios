@@ -4,6 +4,7 @@ import UserNotifications
 final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self
+        Benachrichtigungen.kategorienEinrichten()
         return true
     }
 
@@ -23,6 +24,11 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     // Antippen: Auftrag bzw. Helfer öffnen
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
+        // ⚡ Schnellaktion (Variante, Schärfen …) - ohne die App zu öffnen
+        if let id = info["auftrag"] as? String, ["variante", "schaerfen", "groesser", "filmlook"].contains(response.actionIdentifier) {
+            await Benachrichtigungen.aktion(response.actionIdentifier, auftrag: id)
+            return
+        }
         await MainActor.run {
             if let id = info["auftrag"] as? String { Navigation.shared.oeffne(auftrag: id) }
             else if info["helfer"] != nil {
@@ -84,6 +90,10 @@ struct NitraXApp: App {
             .onOpenURL { url in
                 // nitrax://auftrag/<id> (Widget) oder ein QR-Link http(s)://…/?k=…
                 if url.scheme == "nitrax", url.host == "auftrag" { navigation.oeffne(auftrag: url.lastPathComponent) }
+                else if url.scheme == "nitrax", url.host == "helfer" {
+                    navigation.reiter = .helfer
+                    if url.query?.contains("hoeren=1") == true { navigation.helferZuhoeren = true }
+                }
                 else if let v = Verbindung.ausLink(url.absoluteString) { studio.verbinden(v) }
             }
         }
@@ -91,6 +101,13 @@ struct NitraXApp: App {
             switch neu {
             case .active:
                 studio.starten()
+                // 🎛 Kontrollzentrum / Sperrbildschirm: »Mit Helfer sprechen«
+                let t = Gemeinsam.defaults.double(forKey: "helfer_oeffnen")
+                if t > 0, Date().timeIntervalSince1970 - t < 30 {
+                    Gemeinsam.defaults.removeObject(forKey: "helfer_oeffnen")
+                    navigation.reiter = .helfer
+                    navigation.helferZuhoeren = true
+                }
                 Benachrichtigungen.erlaubnisHolen()
             case .background:
                 studio.anhalten()

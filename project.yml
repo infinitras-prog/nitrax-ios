@@ -70,9 +70,11 @@ targets:
     dependencies:
       - target: NitraXWidget
       - target: NitraXTeilen
+      - target: NitraXMitteilung
   NitraXWidget:
     type: app-extension
     platform: iOS
+    deploymentTarget: "18.0"           # Kontrollzentrum-Steuerelement (ControlWidget) gibt es ab iOS 18
     sources:
       - path: NitraXWidget
       - path: Shared
@@ -126,6 +128,25 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax.teilen
         PROVISIONING_PROFILE_SPECIFIER: $(NX_PROFIL_TEILEN)
         SKIP_INSTALL: YES
+  NitraXMitteilung:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NitraXMitteilung
+    info:
+      path: NitraXMitteilung/Info.plist
+      properties:
+        CFBundleDisplayName: NitraX Mitteilungen
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.usernotifications.service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).MitteilungDienst
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax.mitteilung
+        PROVISIONING_PROFILE_SPECIFIER: $(NX_PROFIL_MITTEILUNG)
+        SKIP_INSTALL: YES
 schemes:
   NitraX:
     build:
@@ -133,6 +154,7 @@ schemes:
         NitraX: all
         NitraXWidget: all
         NitraXTeilen: all
+        NitraXMitteilung: all
     run:
       config: Debug
     archive:

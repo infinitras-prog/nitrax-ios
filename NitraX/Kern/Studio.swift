@@ -161,12 +161,24 @@ final class Studio: ObservableObject {
             Benachrichtigungen.vergleichen(s)
             widgetAuffrischen(s)
             LiveAktivitaeten.abgleichen(s, client: c)
+            if Date().timeIntervalSince(helferZeit) > 60 {           // 🧍 Stimmungs-Widget
+                helferZeit = Date()
+                if let h = try? await c.get("/api/begleiter/statistik", JSONWert.self) {
+                    HelferStand(name: h["name"]?.text ?? "Helfer", stufe: h["stufe_name"]?.text ?? "", stimmung: h["stimmung"]?.zahl ?? 0.6,
+                                punkte: Int(h["punkte"]?.zahl ?? 0), bis: Int(h["bis"]?.zahl ?? 0), gespraeche: Int(h["gespraeche"]?.zahl ?? 0),
+                                zeit: Date()).speichern()
+                    WidgetCenter.shared.reloadTimelines(ofKind: "NitraXHelfer")
+                }
+            }
+            OfflineGalerie.shared.abgleichen(s, client: c)
         } catch {
             erreichbar = false
         }
     }
 
     /// Widget nur bei Änderung (oder jede Minute) neu zeichnen lassen - nicht alle 3 s
+    private var helferZeit = Date.distantPast
+
     private func widgetAuffrischen(_ s: StudioStand) {
         let schnapp = Schnappschuss.aus(s)
         schnapp.speichern()
