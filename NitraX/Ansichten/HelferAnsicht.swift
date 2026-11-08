@@ -219,11 +219,20 @@ struct HelferWeb: UIViewRepresentable {
       var SEH = ['siehst', 'sieh ', 'sieh!', 'sehen', 'kamera', 'wie sehe ich', 'wie seh ich', 'aussehe', 'was habe ich', 'was hab ich',
         'was halte ich', 'was trage ich', 'was hab ich an', 'erkennst', 'schau', 'guck', 'zeig dir', 'vor dir', 'deine augen', 'hinter mir',
         'wie findest du mein', 'mein outfit', 'meine haare', 'meinen hund', 'meine katze', 'in der hand', 'wo bin ich', 'was ist das'];
+      // »Mach ein Bild von mir am Strand«: das Live-Kamerabild geht als Vorlage mit (Helfer + Werkstatt sehen es)
+      var VORLAGE = ['von mir', 'mit mir', 'mach mich', 'aus mir', 'mit meinem gesicht', 'wo ich ', 'das du von mir', 'den du von mir',
+        'mich als', 'mich am ', 'mich im ', 'mich in ', 'mich auf ', 'mich mit ', 'so wie ich', 'mein gesicht', 'aus dem bild', 'aus dem kamerabild',
+        'aus dem live', 'was du gerade siehst', 'was du siehst'];
       window.nxAugen = { kontext: async function (frage) {
         var q = String(frage || '').toLowerCase();
-        if (!SEH.some(function (w) { return q.indexOf(w) >= 0; })) return null;
-        try { var t = await window.webkit.messageHandlers.nxAuge.postMessage(q); return t ? {text: t, bilder: []} : null; }
-        catch (e) { return null; }
+        var art = VORLAGE.some(function (w) { return q.indexOf(w) >= 0; }) ? 'vorlage'
+          : (SEH.some(function (w) { return q.indexOf(w) >= 0; }) ? 'sehen' : '');
+        if (!art) return null;
+        try {
+          var t = await window.webkit.messageHandlers.nxAuge.postMessage({art: art, frage: q});
+          if (!t || !t.text) return null;
+          return {text: t.text, bilder: t.bild ? [t.bild] : []};
+        } catch (e) { return null; }
       }};
       // 📳 Vibration der Seite (Spiele, Touch) -> echte iPhone-Haptik
       navigator.vibrate = function (m) {
@@ -265,7 +274,7 @@ struct HelferWeb: UIViewRepresentable {
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxHelfer")
         inhalt.add(SchwacherHandler(context.coordinator), name: "nxHaptik")
         let koordinator = context.coordinator
-        inhalt.addScriptMessageHandler(AntwortHandler { frage in await koordinator.sehen(frage) }, contentWorld: .page, name: "nxAuge")
+        inhalt.addScriptMessageHandler(AntwortHandler { art, frage in await koordinator.sehen(art, frage) }, contentWorld: .page, name: "nxAuge")
         k.userContentController = inhalt
         let w = WKWebView(frame: .zero, configuration: k)
         w.isOpaque = false
@@ -374,19 +383,31 @@ struct HelferWeb: UIViewRepresentable {
             }
         }
 
-        /// 👁 Seh-Frage: aktuelles Kamerabild an den PC, der beschreibt es - ehrlicher Befund, wenn die Augen aus sind
-        func sehen(_ frage: String) async -> String {
+        /// 👁 Seh-Frage / Vorlage-Wunsch: aktuelles Kamerabild an den PC. »sehen«: der PC beschreibt es (ehrlicher Befund);
+        /// »vorlage«: das Bild hängt an der Nachricht, Helfer und Werkstatt nutzen es (z. B. »Bild von mir am Strand«).
+        func sehen(_ art: String, _ frage: String) async -> [String: String] {
             guard augen.laeuft else {
-                return "deine Augen (die Handykamera) sind gerade AUS – du siehst ihn nicht; sag ihm, dass er sie mit dem Augen-Knopf rechts einschalten kann"
+                return ["text": "deine Augen (die Handykamera) sind gerade AUS – du siehst ihn nicht und hast kein Bild von ihm; sag ihm, dass er sie mit dem Augen-Knopf rechts einschalten kann"]
             }
-            guard let bild = augen.verarbeitung.jpeg() else { return "deine Handykamera liefert gerade kein Bild – du siehst ihn nicht" }
-            if bild.isEmpty { return "die Handykamera zeigt nur ein SCHWARZES Bild (Objektiv abgedeckt oder sehr dunkel) – du siehst ihn gerade nicht" }
+            guard let bild = augen.verarbeitung.jpeg(kante: 1280) else { return ["text": "deine Handykamera liefert gerade kein Bild – du siehst ihn nicht"] }
+            if bild.isEmpty { return ["text": "die Handykamera zeigt nur ein SCHWARZES Bild (Objektiv abgedeckt oder sehr dunkel) – du siehst ihn gerade nicht"] }
+            var name: String?
+            if let r = try? await client.hochladen("/api/chat/upload", daten: bild, dateiname: "kamera.jpg", typ: "image/jpeg") { name = r["name"]?.text }
+            if art == "vorlage" {
+                guard let name else { return ["text": "das Kamerabild kam gerade nicht beim PC an – du hast kein Bild von ihm"] }
+                return ["text": "das aktuelle Bild seiner Handykamera (Frontkamera, er selbst) ist angehängt – nutze es als Vorlage, wenn er sich selbst im Ergebnis haben möchte, und gib es mit dem Auftrag weiter",
+                        "bild": name]
+            }
             do {
-                let r = try await client.hochladen("/api/begleiter/kamera", daten: bild, dateiname: "blick.jpg", typ: "image/jpeg", felder: ["art": "beschreiben"])
+                let r = try await client.hochladen("/api/begleiter/kamera", daten: augen.verarbeitung.jpeg() ?? bild, dateiname: "blick.jpg", typ: "image/jpeg", felder: ["art": "beschreiben"])
                 let t = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                return t.isEmpty ? "deine Handykamera liefert gerade kein klares Bild" : "durch die Handykamera (Frontkamera, er hält das Handy) siehst du: " + t
+                var a: [String: String] = ["text": t.isEmpty ? "deine Handykamera liefert gerade kein klares Bild"
+                                                             : "durch die Handykamera (Frontkamera, er hält das Handy) siehst du: " + t]
+                if let name { a["bild"] = name }
+                return a
             } catch {
-                return "das Kamerabild kam gerade nicht beim PC an – du siehst ihn nicht"
+                return name.map { ["text": "das Kamerabild ist angehängt (die Beschreibung kam gerade nicht)", "bild": $0] }
+                    ?? ["text": "das Kamerabild kam gerade nicht beim PC an – du siehst ihn nicht"]
             }
         }
 
@@ -422,11 +443,13 @@ struct HelferWeb: UIViewRepresentable {
 
 /// Nachricht mit Antwort (JS: `await window.webkit.messageHandlers.nxAuge.postMessage(…)`)
 final class AntwortHandler: NSObject, WKScriptMessageHandlerWithReply {
-    let arbeit: @MainActor (String) async -> String
-    init(_ a: @escaping @MainActor (String) async -> String) { arbeit = a }
+    let arbeit: @MainActor (String, String) async -> [String: String]
+    init(_ a: @escaping @MainActor (String, String) async -> [String: String]) { arbeit = a }
     func userContentController(_ uc: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
-        let frage = message.body as? String ?? ""
-        Task { @MainActor in replyHandler(await arbeit(frage), nil) }
+        let d = message.body as? [String: Any]
+        let art = d?["art"] as? String ?? "sehen"
+        let frage = d?["frage"] as? String ?? (message.body as? String ?? "")
+        Task { @MainActor in replyHandler(await arbeit(art, frage), nil) }
     }
 }
 
