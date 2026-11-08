@@ -11,6 +11,10 @@ import UIKit
 final class AnrufDienst: NSObject, ObservableObject {
     static let shared = AnrufDienst()
     @Published private(set) var imGespraech = false
+    @Published private(set) var lautsprecher = false
+    @Published private(set) var stumm = false
+    @Published private(set) var seit: Date?
+    @Published private(set) var anrufer = "Dein Helfer"
 
     private let registrierung = PKPushRegistry(queue: .main)
     private let anbieter: CXProvider
@@ -54,6 +58,7 @@ final class AnrufDienst: NSObject, ObservableObject {
     fileprivate func eingehend(_ info: [AnyHashable: Any], fertig: @escaping () -> Void) {
         let a = info["anruf"] as? [String: Any] ?? [:]
         let von = a["von"] as? String ?? "Dein Helfer"
+        anrufer = von
         let text = a["text"] as? String ?? "Ich wollte dir kurz was sagen."
         let uuid = UUID()
         aktiv = (uuid, text, von)
@@ -69,6 +74,19 @@ final class AnrufDienst: NSObject, ObservableObject {
     func auflegen() {
         guard let a = aktiv else { return }
         steuerung.request(CXTransaction(action: CXEndCallAction(call: a.uuid))) { _ in }
+    }
+
+    /// 🔊 Hörmuschel ⇄ Lautsprecher (wie beim normalen Telefonieren)
+    func lautsprecherUmschalten() {
+        lautsprecher.toggle()
+        try? AVAudioSession.sharedInstance().overrideOutputAudioPort(lautsprecher ? .speaker : .none)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    /// 🎙 Stumm: über CallKit (dann stimmt auch die Anzeige auf dem Sperrbildschirm)
+    func stummUmschalten() {
+        guard let a = aktiv else { return }
+        steuerung.request(CXTransaction(action: CXSetMutedCallAction(call: a.uuid, muted: !stumm))) { _ in }
     }
 }
 
@@ -97,7 +115,10 @@ extension AnrufDienst: CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         Task { @MainActor in
             let s = AVAudioSession.sharedInstance()
-            try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+            try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])   // Hörmuschel wie beim Telefonieren
+            self.lautsprecher = false
+            self.stumm = false
+            self.seit = Date()
             self.imGespraech = true
             action.fulfill()
         }
@@ -109,6 +130,7 @@ extension AnrufDienst: CXProviderDelegate {
             self.gespraech = nil
             self.aktiv = nil
             self.imGespraech = false
+            self.seit = nil
             action.fulfill()
         }
     }
@@ -121,6 +143,14 @@ extension AnrufDienst: CXProviderDelegate {
             g.aufgelegt = { [weak self] in self?.auflegen() }
             self.gespraech = g
             g.starten()
+        }
+    }
+
+    nonisolated func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
+        Task { @MainActor in
+            self.stumm = action.isMuted
+            self.gespraech?.stumm(action.isMuted)
+            action.fulfill()
         }
     }
 
@@ -157,6 +187,10 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate {
             sagen([begruessung])
             try? ohr.starten(sitzung: false)
         }
+    }
+
+    func stumm(_ an: Bool) {
+        if an { ohr.stoppen() } else if !aus { try? ohr.starten(sitzung: false) }
     }
 
     func beenden() {

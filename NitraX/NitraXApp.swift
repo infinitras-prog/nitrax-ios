@@ -64,6 +64,7 @@ struct NitraXApp: App {
     @StateObject private var studio = Studio()
     @StateObject private var navigation = Navigation.shared
     @StateObject private var sperre = Sperre()
+    @StateObject private var anruf = AnrufDienst.shared
     @State private var splash = true
     @Environment(\.scenePhase) private var phase
 
@@ -92,6 +93,8 @@ struct NitraXApp: App {
                 }
             }
             .overlay { if sperre.gesperrt { SperrAnsicht(sperre: sperre) } }
+            .overlay { if anruf.imGespraech { AnrufAnsicht(dienst: anruf).transition(.move(edge: .bottom)).zIndex(5) } }
+            .animation(.spring(duration: 0.4), value: anruf.imGespraech)
             .overlay {
                 if splash {
                     SplashAnsicht { withAnimation(.easeOut(duration: 0.6)) { splash = false } }
