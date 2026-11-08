@@ -19,12 +19,26 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
 
     // Mitteilung auch zeigen, wenn die App offen ist
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification) async -> UNNotificationPresentationOptions {
-        [.banner, .sound, .list]
+        let info = notification.request.content.userInfo
+        if LokaleAnrufe.istAnruf(info) {                     // 📞 App ist offen: gleich der echte Anrufbildschirm
+            await MainActor.run { LokaleAnrufe.klingeln(info, annehmen: false) }
+            return []
+        }
+        return [.banner, .sound, .list]
     }
 
     // Antippen: Auftrag bzw. Helfer öffnen
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
+        if LokaleAnrufe.istAnruf(info) {                     // 📞 Klingel-Mitteilung angenommen / abgelehnt
+            let t = (info["nx_anruf"] as? Int) ?? 0
+            if response.actionIdentifier == "ablehnen" || response.actionIdentifier == UNNotificationDismissActionIdentifier {
+                LokaleAnrufe.beenden(t)
+            } else {
+                await MainActor.run { LokaleAnrufe.klingeln(info, annehmen: true) }
+            }
+            return
+        }
         // ⚡ Schnellaktion (Variante, Schärfen …) - ohne die App zu öffnen
         if let id = info["auftrag"] as? String, ["variante", "schaerfen", "groesser", "filmlook"].contains(response.actionIdentifier) {
             await Benachrichtigungen.aktion(response.actionIdentifier, auftrag: id)

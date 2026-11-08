@@ -71,6 +71,17 @@ final class AnrufDienst: NSObject, ObservableObject {
         anbieter.reportNewIncomingCall(with: uuid, update: u) { _ in fertig() }
     }
 
+    /// 📞 Anruf, den das iPhone selbst geplant hat (ohne VoIP-Push): als echter CallKit-Anruf melden;
+    /// annehmen = gleich abheben (der Nutzer hat die Klingel-Mitteilung schon angenommen)
+    func lokal(von: String, text: String, annehmen: Bool) {
+        eingehend(["anruf": ["von": von, "text": text.isEmpty ? "Du wolltest, dass ich dich anrufe – hier bin ich!" : text]]) { [weak self] in
+            Task { @MainActor in
+                guard annehmen, let self, let a = self.aktiv else { return }
+                self.steuerung.request(CXTransaction(action: CXAnswerCallAction(call: a.uuid))) { _ in }
+            }
+        }
+    }
+
     func auflegen() {
         guard let a = aktiv else { return }
         steuerung.request(CXTransaction(action: CXEndCallAction(call: a.uuid))) { _ in }

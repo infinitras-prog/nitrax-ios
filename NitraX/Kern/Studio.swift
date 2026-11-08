@@ -196,6 +196,7 @@ final class Studio: ObservableObject {
             Benachrichtigungen.vergleichen(s)
             widgetAuffrischen(s)
             LiveAktivitaeten.abgleichen(s, client: c)
+            await LokaleAnrufe.abgleichen(c)                                   // 📞 geplante Anrufe als Klingel-Alarm
             if Date().timeIntervalSince(helferZeit) > 60 {           // 🧍 Stimmungs-Widget
                 helferZeit = Date()
                 if let h = try? await c.get("/api/begleiter/statistik", JSONWert.self) {

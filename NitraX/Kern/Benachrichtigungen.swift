@@ -77,11 +77,13 @@ enum Benachrichtigungen {
         let groesser = UNNotificationAction(identifier: "groesser", title: "⤢ 2× größer", options: [])
         let filmlook = UNNotificationAction(identifier: "filmlook", title: "🎞 Film-Look", options: [])
         let oeffnen = UNNotificationAction(identifier: "oeffnen", title: "Ansehen", options: [.foreground])
-        UNUserNotificationCenter.current().setNotificationCategories([
+        var kategorien = [
             UNNotificationCategory(identifier: "NX_BILD", actions: [variante, groesser, oeffnen], intentIdentifiers: []),
             UNNotificationCategory(identifier: "NX_VIDEO", actions: [variante, schaerfen, filmlook, oeffnen], intentIdentifiers: []),
             UNNotificationCategory(identifier: "NX_AUFTRAG", actions: [variante, oeffnen], intentIdentifiers: []),
-        ])
+        ]
+        LokaleAnrufe.kategorie(&kategorien)                                   // 📞 Annehmen / Ablehnen
+        UNUserNotificationCenter.current().setNotificationCategories(Set(kategorien))
     }
 
     /// Schnellaktion aus der Mitteilung - läuft im Hintergrund, Ergebnis als kurze Mitteilung
@@ -153,5 +155,6 @@ enum Benachrichtigungen {
             WidgetCenter.shared.reloadAllTimelines()
         }
         await helferAbholen(c)
+        await LokaleAnrufe.abgleichen(c, sofort: true)                         // 📞 geplante Anrufe
     }
 }
