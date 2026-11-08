@@ -57,18 +57,19 @@ def einrichten():
 
     # Reste früherer Läufe wegräumen: unsere »NitraX CI«-Profile und -Zertifikate (erst jetzt, damit Apple den
     # vorigen Upload in Ruhe verarbeiten konnte). Fremde Zertifikate werden nie angefasst.
-    for p in api("GET", "/profiles?limit=200&fields[profiles]=name").get("data", []):
+    # Apple schreibt den Zertifikatsnamen um - unsere Zertifikate erkennt man an den »NitraX CI«-Profilen, die sie nutzen.
+    ci_zert = set()
+    for p in api("GET", "/profiles?limit=200&fields[profiles]=name&include=certificates").get("data", []):
         if p["attributes"]["name"].startswith("NitraX CI "):
+            for c in (p.get("relationships", {}).get("certificates", {}).get("data") or []):
+                ci_zert.add(c["id"])
             api("DELETE", "/profiles/" + p["id"])
-    for c in api("GET", "/certificates?limit=200&filter[certificateType]=DISTRIBUTION,IOS_DISTRIBUTION").get("data", []):
-        der = base64.b64decode(c["attributes"].get("certificateContent") or "")
-        if not der:
-            continue
-        subj = subprocess.run(["openssl", "x509", "-inform", "DER", "-noout", "-subject"], input=der,
-                              capture_output=True).stdout.decode("utf-8", "ignore")
-        if "NitraX CI" in subj:
-            api("DELETE", "/certificates/" + c["id"])
-            print("alter CI-Zertifikat widerrufen:", c["id"])
+    for cid in ci_zert:
+        try:
+            api("DELETE", "/certificates/" + cid)
+            print("altes CI-Zertifikat widerrufen:", cid)
+        except SystemExit as e:
+            print(e)
 
     # 1) Schlüssel + Zertifikatsanfrage
     key = os.path.join(ORDNER, "schluessel.pem")
