@@ -63,6 +63,8 @@ struct EinstellungenAnsicht: View {
                         .onChange(of: live) { _, an in LiveAktivitaeten.an = an }
                 }
 
+                ModellAbschnitt()
+
                 Section("Studio") {
                     Button(studio.angehalten ? "Warteschlange fortsetzen" : "Warteschlange anhalten") {
                         Task { await studio.warteschlange(anhalten: !studio.angehalten) }

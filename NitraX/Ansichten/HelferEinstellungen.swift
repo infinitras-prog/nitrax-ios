@@ -16,6 +16,7 @@ struct HelferEinstellungen: View {
     @State private var original: [String: JSONWert] = [:]
     @State private var arten: [[String]] = []
     @State private var stimmen: [[String]] = []
+    @State private var modelle: [ModellListe.Modell] = []
 
     var body: some View {
         NavigationStack {
@@ -36,6 +37,18 @@ struct HelferEinstellungen: View {
                             Text("Über mich").font(.subheadline)
                             TextField("Vorlieben, Eigenheiten, Hintergrund …", text: text("ueber_mich"), axis: .vertical).lineLimit(3...8)
                         }
+                    }
+                    Section {
+                        Picker("Denkt mit", selection: text("modell")) {
+                            Text("Standard der App").tag("")
+                            ForEach(modelle) { Text($0.zeile).tag($0.id) }
+                        }
+                        Picker("Sieht mit (Kamera, Bilder)", selection: text("modell_sehen")) {
+                            Text("automatisch").tag("")
+                            ForEach(modelle.filter { $0.sieht }) { Text($0.zeile).tag($0.id) }
+                        }
+                    } header: { Text("Modell") } footer: {
+                        Text("Kleinere Modelle antworten schneller, größere klüger. 👁 = kann Bilder sehen, 💭 = denkt vorher nach (langsamer).")
                     }
                     Section("Sprechen") {
                         Toggle("Spricht laut", isOn: schalter("sprechen"))
@@ -89,6 +102,10 @@ struct HelferEinstellungen: View {
             e = d["einst"]?.objekt ?? [:]
             original = e
             arten = (d["persoenlichkeiten"]?.liste ?? []).compactMap { $0.liste?.compactMap { $0.text } }.filter { !$0.isEmpty }
+            modelle = await ModellListe.chat(c)
+            for k in ["modell", "modell_sehen"] {             // gewähltes Modell fehlt in der Liste -> trotzdem anzeigen
+                if let w = e[k]?.text, !w.isEmpty, !modelle.contains(where: { $0.id == w }) { modelle.insert(.init(id: w, name: w), at: 0) }
+            }
             if let s = try? await c.get("/api/anruf/stimmen", JSONWert.self) {
                 let vorlagen = (s["vorlagen"]?.liste ?? []).compactMap { v -> [String]? in
                     guard let id = v["id"]?.text, let n = v["name"]?.text else { return nil }

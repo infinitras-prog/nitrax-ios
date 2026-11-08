@@ -104,6 +104,8 @@ struct ChatAnsicht: View {
     @State private var laeuft = false
     @State private var status = ""
     @State private var aufgabe: Task<Void, Never>?
+    @State private var modell = ""
+    @State private var modelle: [ModellListe.Modell] = []
     @FocusState private var fokus: Bool
 
     var body: some View {
@@ -134,6 +136,17 @@ struct ChatAnsicht: View {
             if laeuft {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Stopp", systemImage: "stop.circle") { Task { await stoppen() } }
+                }
+            }
+            // 🧠 Modell dieses Chats
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Picker("Modell", selection: Binding(get: { modell }, set: { neu in Task { await modellSetzen(neu) } })) {
+                        Text("Standard der App").tag("")
+                        ForEach(modelle) { Text($0.zeile).tag($0.id) }
+                    }
+                } label: {
+                    Label(modell.isEmpty ? "Modell" : modell, systemImage: "cpu")
                 }
             }
         }
@@ -205,6 +218,15 @@ struct ChatAnsicht: View {
                           auftraege: (n["auftraege"]?.liste ?? []).compactMap { $0.text })
         }
         if d["laeuft"]?.wahr == true { status = "Antwortet noch am PC …"; laeuft = true }
+        modell = d["modell"]?.text ?? ""
+        modelle = await ModellListe.chat(c)
+    }
+
+    private func modellSetzen(_ m: String) async {
+        guard let c = studio.client else { return }
+        modell = m
+        if !m.isEmpty { _ = try? await c.post("/api/chats/\(kopf.id)/aendern", ["modell": m]) }
+        studio.meldung = "🧠 " + (m.isEmpty ? "Standard der App" : m)
     }
 
     private func senden() {
@@ -218,8 +240,9 @@ struct ChatAnsicht: View {
         nachrichten.append(ChatNachricht(rolle: "assistant", text: ""))
         laeuft = true
         status = "denkt nach …"
-        let body: [String: Any] = ["text": text, "bilder": bilder,
+        var body: [String: Any] = ["text": text, "bilder": bilder,
                                    "werkzeuge": ["bild": true, "gedaechtnis": true, "denken": "kurz", "web": true]]
+        if !modell.isEmpty { body["modell"] = modell }
         aufgabe = Task {
             do {
                 for try await ev in c.strom("/api/chats/\(kopf.id)/senden", body) {

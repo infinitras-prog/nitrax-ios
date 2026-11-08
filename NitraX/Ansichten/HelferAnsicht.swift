@@ -216,9 +216,9 @@ struct HelferWeb: UIViewRepresentable {
         if (i && s) { i.value = t; s.click(); }
       };
       // 👁 Seh-Fragen beantwortet die App mit der Frontkamera (der PC beschreibt das Bild)
-      var SEH = ['siehst du', 'siehst mich', 'kannst du mich sehen', 'kamera', 'wie sehe ich', 'wie seh ich', 'wie sehe ich aus',
-        'was habe ich', 'was hab ich', 'was halte ich', 'was trage ich', 'erkennst du mich', 'schau mal', 'schau mich', 'guck mal',
-        'guck mich', 'sieh mal', 'sieh mich', 'zeig dir', 'vor dir', 'deine augen', 'wie findest du mein', 'mein outfit'];
+      var SEH = ['siehst', 'sieh ', 'sieh!', 'sehen', 'kamera', 'wie sehe ich', 'wie seh ich', 'aussehe', 'was habe ich', 'was hab ich',
+        'was halte ich', 'was trage ich', 'was hab ich an', 'erkennst', 'schau', 'guck', 'zeig dir', 'vor dir', 'deine augen', 'hinter mir',
+        'wie findest du mein', 'mein outfit', 'meine haare', 'meinen hund', 'meine katze', 'in der hand', 'wo bin ich', 'was ist das'];
       window.nxAugen = { kontext: async function (frage) {
         var q = String(frage || '').toLowerCase();
         if (!SEH.some(function (w) { return q.indexOf(w) >= 0; })) return null;
