@@ -11,7 +11,7 @@ settings:
   base:
     DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
     CODE_SIGN_STYLE: Automatic
-    MARKETING_VERSION: "0.5.6"           # TestFlight nimmt die Datei VERSION (bei jedem Update hochzählen)
+    MARKETING_VERSION: "0.5.7"           # TestFlight nimmt die Datei VERSION (bei jedem Update hochzählen)
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     TARGETED_DEVICE_FAMILY: "1,2"

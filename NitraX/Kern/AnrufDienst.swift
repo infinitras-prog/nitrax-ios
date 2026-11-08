@@ -172,21 +172,28 @@ extension AnrufDienst: CXProviderDelegate {
 
 /// Das eigentliche Telefonat: sprechen -> zuhören (mit Reinreden) -> verstehen -> Helfer antwortet -> sprechen …
 @MainActor
-final class AnrufGespraech: NSObject, AVAudioPlayerDelegate {
+final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizerDelegate {
     let client: NXClient
     let begruessung: String
     var aufgelegt: (() -> Void)?
     private let ohr = Dauergespraech()
     private var spieler: AVAudioPlayer?
+    private let lokal = AVSpeechSynthesizer()          // 🗣 Rückfall: das iPhone spricht selbst, wenn die PC-Stimme nicht rechtzeitig kommt
+    private var lokalSpricht = false
     private var warteschlange: [String] = []
     private var chat: String?
     private var aus = false
     private var stille = 0
     private var stimme: String?
+    private var pcStimmeLangsam = 0
+    private var ersterSatz = true
 
     init(client: NXClient, begruessung: String) {
         self.client = client
         self.begruessung = begruessung
+        super.init()
+        lokal.delegate = self
+        lokal.usesApplicationAudioSession = true
     }
 
     func starten() {
@@ -195,6 +202,10 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate {
         Task {
             if let c = try? await client.post("/api/begleiter/chat", [:]) { chat = c["id"]?.text }
             if let b = try? await client.get("/api/begleiter", JSONWert.self) { stimme = b["einst"]?["stimme"]?.text }
+            // ⚡ Stimme + Sprachmodell am PC sofort laden (nach einem NitraX-Neustart dauerte die erste Antwort sonst > 1 min)
+            var vor: [String: Any] = ["sprache": "German"]
+            if let stimme, !stimme.isEmpty { vor["stimme"] = stimme }
+            Task.detached { [client] in _ = try? await client.post("/api/anruf/vorbereiten", vor, zeit: 180) }
             sagen([begruessung])
             try? ohr.starten(sitzung: false)
         }
@@ -209,37 +220,71 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate {
         ohr.stoppen()
         spieler?.stop()
         spieler = nil
+        lokal.stopSpeaking(at: .immediate)
     }
 
     private func stillSein() {
         warteschlange.removeAll()
         spieler?.stop()
         spieler = nil
+        if lokalSpricht { lokal.stopSpeaking(at: .immediate); lokalSpricht = false }
         ohr.helferZustand = "hoeren"
     }
 
+    private var redet: Bool { spieler != nil || lokalSpricht || laedt }
+    private var laedt = false
+
     private func sagen(_ saetze: [String]) {
-        warteschlange += saetze.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-        if spieler == nil { Task { await naechster() } }
+        warteschlange += saetze.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { $0.count > 1 }
+        if !redet { Task { await naechster() } }
     }
 
     private func naechster() async {
-        guard !aus, !warteschlange.isEmpty else { ohr.helferZustand = "ruhe"; return }
+        guard !aus, !warteschlange.isEmpty else { if !redet { ohr.helferZustand = "ruhe" }; return }
         let satz = warteschlange.removeFirst()
         ohr.helferZustand = "sprechen"
+        laedt = true
+        let ton = pcStimmeLangsam >= 2 ? nil : await pcTon(satz)          // PC zweimal zu langsam -> nur noch lokal
+        laedt = false
+        guard !aus else { return }
+        if let ton, let p = try? AVAudioPlayer(data: ton) {
+            spieler = p
+            p.delegate = self
+            p.play()
+        } else {
+            lokalSprechen(satz)
+        }
+    }
+
+    /// Satz von der PC-Stimme (mp3) – nil, wenn sie nicht in 20 s (erster Satz: 35 s) liefert
+    private func pcTon(_ satz: String) async -> Data? {
         var body: [String: Any] = ["text": satz, "sprache": "de"]
         if let stimme, !stimme.isEmpty { body["stimme"] = stimme }
-        guard let url = client.url("/api/anruf/sprechen"), let daten = try? JSONSerialization.data(withJSONObject: body) else { await naechster(); return }
+        guard let url = client.url("/api/anruf/sprechen"), let daten = try? JSONSerialization.data(withJSONObject: body) else { return nil }
         var r = URLRequest(url: url)
         r.httpMethod = "POST"
         r.httpBody = daten
-        r.timeoutInterval = 60
+        r.timeoutInterval = ersterSatz ? 35 : 20
+        ersterSatz = false
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         for (k, w) in client.cookieKopf { r.setValue(w, forHTTPHeaderField: k) }
-        guard let (ton, _) = try? await URLSession.shared.data(for: r), !aus, let p = try? AVAudioPlayer(data: ton) else { await naechster(); return }
-        spieler = p
-        p.delegate = self
-        p.play()
+        do {
+            let (d, resp) = try await URLSession.shared.data(for: r)
+            guard (resp as? HTTPURLResponse)?.statusCode ?? 500 < 400, d.count > 200 else { pcStimmeLangsam += 1; return nil }
+            pcStimmeLangsam = 0
+            return d
+        } catch {
+            pcStimmeLangsam += 1
+            return nil
+        }
+    }
+
+    private func lokalSprechen(_ satz: String) {
+        let u = AVSpeechUtterance(string: satz)
+        u.voice = AVSpeechSynthesisVoice(language: "de-DE")
+        u.rate = AVSpeechUtteranceDefaultSpeechRate * 1.02
+        lokalSpricht = true
+        lokal.speak(u)
     }
 
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
@@ -249,9 +294,19 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in
+            self.lokalSpricht = false
+            await self.naechster()
+        }
+    }
+
     private func gehoert(_ wav: Data) async {
         defer { ohr.weiter() }
-        guard !aus, let r = try? await client.hochladen("/api/anruf/hoeren", daten: wav, dateiname: "anruf.wav", typ: "audio/wav", felder: ["sprache": "German"]) else { return }
+        guard !aus, let r = try? await client.hochladen("/api/anruf/hoeren", daten: wav, dateiname: "anruf.wav", typ: "audio/wav", felder: ["sprache": "German"]) else {
+            sagen(["Ich hab dich gerade nicht verstanden, sag das bitte nochmal."])
+            return
+        }
         let text = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count > 1 else {
             stille += 1
@@ -263,21 +318,52 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate {
             aufgelegt?()
             return
         }
-        guard let chat else { return }
-        var ganz = ""
+        guard let chat else { sagen(["Moment, ich bin gleich wieder da."]); return }
         let nachricht = "(Ihr telefoniert gerade – er hat dich angerufen bzw. abgehoben. Antworte kurz, natürlich gesprochen, 1-3 Sätze, ohne Emojis.)\n" + text
+        // 💬 kurzer Laut, wenn das Nachdenken dauert (sonst wirkt die Leitung tot)
+        let fueller = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(3.5))
+            guard let self, !Task.isCancelled, !self.redet else { return }
+            self.lokalSprechen(["Mhm, Moment.", "Mhm, lass mich kurz überlegen.", "Moment."].randomElement()!)
+        }
+        // Satz für Satz sprechen, sobald er fertig ist (nicht erst nach der ganzen Antwort)
+        var ganz = "", gesprochen = 0
+        func fertigeSaetze(_ ende: Bool) -> [String] {
+            let rest = String(ganz.dropFirst(gesprochen))
+            var aus: [String] = [], start = rest.startIndex, i = rest.startIndex
+            while i < rest.endIndex {
+                let z = rest[i]
+                let naechstes = rest.index(after: i)
+                if ".!?".contains(z) && (naechstes == rest.endIndex ? ende : rest[naechstes].isWhitespace) {
+                    aus.append(String(rest[start...i]))
+                    start = naechstes
+                }
+                i = naechstes
+            }
+            if ende, start < rest.endIndex { aus.append(String(rest[start...])) }
+            gesprochen += rest.distance(from: rest.startIndex, to: ende ? rest.endIndex : start)
+            return aus.map { SiriHilfe.sprechbar($0) }.filter { $0.count > 1 }
+        }
         do {
             for try await ev in client.strom("/api/chats/\(chat)/senden", ["text": nachricht, "modus": "begleiter",
                                                                            "werkzeuge": ["web": true, "bild": true, "gedaechtnis": true, "denken": "aus"]]) {
                 switch ev["t"]?.text ?? "" {
-                case "text": ganz += ev["d"]?.text ?? ""
-                case "zurueck": ganz = String(ganz.dropLast(min(Int(ev["n"]?.zahl ?? 0), ganz.count)))
+                case "text":
+                    ganz += ev["d"]?.text ?? ""
+                    let s = fertigeSaetze(false)
+                    if !s.isEmpty { fueller.cancel(); sagen(s) }
+                case "zurueck":
+                    let n = min(Int(ev["n"]?.zahl ?? 0), ganz.count - gesprochen)
+                    if n > 0 { ganz = String(ganz.dropLast(n)) }
                 default: break
                 }
             }
-        } catch { ganz = "Oh, da hat gerade die Verbindung gewackelt – sag das bitte nochmal." }
-        let sauber = SiriHilfe.sprechbar(ganz)
-        let saetze = sauber.split(whereSeparator: { ".!?".contains($0) }).map { $0.trimmingCharacters(in: .whitespaces) + "." }.filter { $0.count > 2 }
-        sagen(saetze.isEmpty ? [sauber] : saetze)
+            fueller.cancel()
+            let s = fertigeSaetze(true)
+            if !s.isEmpty { sagen(s) } else if gesprochen == 0 { sagen(["Hm, da ist mir gerade nichts eingefallen – sag das bitte nochmal."]) }
+        } catch {
+            fueller.cancel()
+            sagen(["Oh, da hat gerade die Verbindung gewackelt – sag das bitte nochmal."])
+        }
     }
 }
