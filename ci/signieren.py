@@ -59,7 +59,7 @@ def einrichten():
     # vorigen Upload in Ruhe verarbeiten konnte). Fremde Zertifikate werden nie angefasst.
     # Apple schreibt den Zertifikatsnamen um - unsere Zertifikate erkennt man an den »NitraX CI«-Profilen, die sie nutzen.
     ci_zert = set()
-    for p in api("GET", "/profiles?limit=200&fields[profiles]=name&include=certificates").get("data", []):
+    for p in api("GET", "/profiles?limit=200&fields[profiles]=name,certificates&include=certificates").get("data", []):
         if p["attributes"]["name"].startswith("NitraX CI "):
             for c in (p.get("relationships", {}).get("certificates", {}).get("data") or []):
                 ci_zert.add(c["id"])
