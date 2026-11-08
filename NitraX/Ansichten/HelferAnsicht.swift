@@ -124,7 +124,10 @@ struct HelferAnsicht: View {
         .onChange(of: navigation.reiter) { _, r in if r != .helfer { stummSchalten() } }
         .onChange(of: phase) { _, ph in if ph != .active { stummSchalten() } }
         .onChange(of: freihand) { _, an in freihandSchalten(an) }
-        .onChange(of: bruecke.bereit) { _, b in if b { freihandSchalten(freihand) } }
+        .onChange(of: bruecke.bereit) { _, b in
+            if b { freihandSchalten(freihand) }
+            if b { Task { try? await Task.sleep(for: .seconds(2.5)); HelferPortrait.holen(aus: bruecke.web) } }   // 🖼 für den Anrufkreis
+        }
         .onChange(of: augenAn) { _, an in if an { Task { await augen.starten() } } else { augen.stoppen() } }
         .onChange(of: augen.fehler) { _, f in if let f { studio.meldung = f; augen.fehler = nil } }
         .onChange(of: navigation.helferMeldung) { _, _ in auftraegeUebernehmen() }

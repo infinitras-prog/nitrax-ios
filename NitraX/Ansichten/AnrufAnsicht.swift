@@ -5,12 +5,39 @@ import SwiftUI
 struct AnrufAnsicht: View {
     @ObservedObject var dienst: AnrufDienst
     @State private var puls = false
+    @State private var portrait = HelferPortrait.bild
 
     var body: some View {
         ZStack {
             Hintergrund()
+            if dienst.video, let url = dienst.helferURL {
+                // 📹 Videoanruf: Helfer im Vollbild, du klein oben rechts
+                VideoHelferWeb(url: url) { w in dienst.videoWeb = w }
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                VStack {
+                    HStack {
+                        Spacer()
+                        ZStack(alignment: .bottomTrailing) {
+                            KameraVorschau(sitzung: dienst.augen.sitzung)
+                                .frame(width: 112, height: 160)
+                                .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    .stroke(Color(red: 0.13, green: 0.83, blue: 0.93).opacity(0.3 + 0.7 * Double(min(1, dienst.pegel * 1.6))), lineWidth: 2))
+                            Button { dienst.augen.drehen() } label: {
+                                Image(systemName: "arrow.triangle.2.circlepath.camera").font(.footnote).padding(7)
+                                    .background(.ultraThinMaterial, in: Circle())
+                            }
+                            .padding(6)
+                        }
+                        .padding(.trailing, 16).padding(.top, 8)
+                    }
+                    Spacer()
+                }
+            }
             VStack(spacing: 18) {
                 Spacer()
+                if !dienst.video {
                 ZStack {
                     // 🎙 du sprichst: Kreis leuchtet türkis mit deinem Pegel · 🔊 der Helfer spricht: warm im Bernstein-Ton
                     let p = CGFloat(dienst.pegel)
@@ -22,14 +49,20 @@ struct AnrufAnsicht: View {
                     Circle().stroke(farbe, lineWidth: 4).frame(width: 140, height: 140)
                         .opacity(0.25 + 0.75 * an).shadow(color: farbe, radius: 6 + 18 * an).scaleEffect(1 + 0.08 * an)
                     Circle().fill(Farbe.panel).frame(width: 130, height: 130)
-                    Image(systemName: dienst.helferSpricht ? "waveform" : "person.wave.2.fill").font(.system(size: 52))
-                        .foregroundStyle(Farbe.akzent).symbolEffect(.variableColor.iterative, isActive: dienst.helferSpricht)
-                        .contentTransition(.symbolEffect(.replace))
+                    if let portrait {
+                        // 🖼 dein Helfer im Kontaktkreis
+                        Image(uiImage: portrait).resizable().scaledToFill().frame(width: 130, height: 130).clipShape(Circle())
+                    } else {
+                        Image(systemName: dienst.helferSpricht ? "waveform" : "person.wave.2.fill").font(.system(size: 52))
+                            .foregroundStyle(Farbe.akzent).symbolEffect(.variableColor.iterative, isActive: dienst.helferSpricht)
+                            .contentTransition(.symbolEffect(.replace))
+                    }
                 }
                 .animation(.easeOut(duration: 0.12), value: dienst.pegel)
                 .animation(.easeInOut(duration: 0.3), value: dienst.helferSpricht)
                 .onAppear { withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { puls = true } }
-                Text(dienst.anrufer).font(.title.bold())
+                }
+                Text(dienst.anrufer).font(.title.bold()).shadow(radius: dienst.video ? 6 : 0)
                 if let seit = dienst.seit {
                     TimelineView(.periodic(from: .now, by: 1)) { t in
                         let s = Int(t.date.timeIntervalSince(seit))
@@ -45,8 +78,9 @@ struct AnrufAnsicht: View {
                     .font(.footnote).foregroundStyle(.secondary)
                     .animation(.easeInOut, value: dienst.helferSpricht)
                 Spacer()
-                HStack(spacing: 40) {
+                HStack(spacing: 28) {
                     knopf(dienst.stumm ? "mic.slash.fill" : "mic.fill", "Stumm", an: dienst.stumm) { dienst.stummUmschalten() }
+                    knopf(dienst.video ? "video.fill" : "video", "Video", an: dienst.video) { withAnimation(.easeInOut(duration: 0.35)) { dienst.videoUmschalten() } }
                     knopf(dienst.lautsprecher ? "speaker.wave.3.fill" : "speaker.fill", "Lautsprecher", an: dienst.lautsprecher) { dienst.lautsprecherUmschalten() }
                 }
                 Button { dienst.auflegen() } label: {

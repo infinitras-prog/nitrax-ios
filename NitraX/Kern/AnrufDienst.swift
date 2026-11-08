@@ -3,6 +3,7 @@ import PushKit
 import CallKit
 import AVFoundation
 import UIKit
+import WebKit
 
 /// 📞 Der Helfer ruft an (nur für Aufträge, bei denen du das ausdrücklich gesagt hast): VoIP-Push vom PC -> echter Anruf
 /// (CallKit, klingelt auch gesperrt). Abheben -> Gespräch mit dem Helfer: er sagt, worum es geht, du antwortest, ihr redet weiter,
@@ -20,6 +21,31 @@ final class AnrufDienst: NSObject, ObservableObject {
     @Published private(set) var welle: [Float] = Array(repeating: 0, count: 48)
     @Published private(set) var helferSpricht = false
     private var anzeigeTakt: Timer?
+    /// 📹 Videoanruf: Helfer als Live-Figur, du als kleines Bild (Frontkamera); sie sieht dich bei Seh-Fragen
+    @Published private(set) var video = false
+    let augen = HelferAugen()
+    weak var videoWeb: WKWebView?
+    private var videoZustand = ""
+
+    var helferURL: URL? {
+        guard let v = Verbindung.laden(), let basis = NXClient(v).url("") else { return nil }
+        let k = v.schluessel.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? v.schluessel
+        return URL(string: basis.absoluteString + "/?k=" + k + "#helfer")
+    }
+
+    func videoUmschalten() {
+        video.toggle()
+        gespraech?.augen = video ? augen : nil
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        if video {
+            Task { await augen.starten() }
+            if !lautsprecher { lautsprecherUmschalten() }        // wie FaceTime: Video = Lautsprecher
+        } else {
+            augen.stoppen()
+            videoWeb = nil
+            if lautsprecher { lautsprecherUmschalten() }
+        }
+    }
 
     private let registrierung = PKPushRegistry(queue: .main)
     private let anbieter: CXProvider
@@ -149,6 +175,7 @@ extension AnrufDienst: CXProviderDelegate {
             self.pegel = 0
             self.welle = Array(repeating: 0, count: 48)
             self.helferSpricht = false
+            if self.video { self.video = false; self.augen.stoppen(); self.videoWeb = nil }
             self.aktiv = nil
             self.imGespraech = false
             self.seit = nil
@@ -162,6 +189,11 @@ extension AnrufDienst: CXProviderDelegate {
             guard let a = self.aktiv, self.gespraech == nil, let v = Verbindung.laden() else { return }
             let g = AnrufGespraech(client: NXClient(v, zeitlimit: 60), begruessung: a.text)
             g.aufgelegt = { [weak self] in self?.auflegen() }
+            g.gefuehl = { [weak self] name in
+                guard let self, self.video else { return }
+                self.videoWeb?.evaluateJavaScript("window.nxVideo && window.nxVideo.gefuehl('\(name)')", completionHandler: nil)
+            }
+            if self.video { g.augen = self.augen }
             self.gespraech = g
             g.starten()
             self.anzeigeTakt?.invalidate()
@@ -173,6 +205,12 @@ extension AnrufDienst: CXProviderDelegate {
                     self.welle.removeFirst()
                     self.welle.append(p)
                     self.helferSpricht = g.helferRedet
+                    if self.video, let w = self.videoWeb {             // 📹 Mund der Figur zur Stimme
+                        let z = g.helferRedet ? "sprechen" : (g.denkt ? "denken" : "hoeren")
+                        var js = String(format: "window.nxVideo && window.nxVideo.pegel(%.3f);", g.ausgangPegel)
+                        if z != self.videoZustand { self.videoZustand = z; js += "window.nxVideo && window.nxVideo.zustand('\(z)');" }
+                        w.evaluateJavaScript(js, completionHandler: nil)
+                    }
                 }
             }
         }
@@ -210,7 +248,21 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private let strom = StromSpieler()
     private var stromGeht = true
     private var stromLaeuft = false
+    private var stromFehler = 0
     var eingangPegel: Float { ohr.pegel }
+    var gefuehl: ((String) -> Void)?
+    weak var augen: HelferAugen?
+    private(set) var denkt = false
+    /// Lautstärke der Helferstimme (für den Mund der Figur im Videoanruf)
+    var ausgangPegel: Float {
+        if stromLaeuft { return strom.pegel }
+        if let p = spieler {
+            p.updateMeters()
+            return max(0, min(1, (p.averagePower(forChannel: 0) + 45) / 38))
+        }
+        if lokalSpricht { return 0.35 + 0.3 * Float(abs(sin(Date().timeIntervalSince1970 * 9))) }
+        return 0
+    }
     var helferRedet: Bool { spieler != nil || lokalSpricht || stromLaeuft }
     private var ersterSatz = true
 
@@ -287,13 +339,15 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             stromLaeuft = false
             guard !aus else { return }
             if ok { await naechster(); return }
-            stromGeht = false                                   // kein Streaming am PC -> ganze Sätze (mp3)
+            stromFehler += 1                                    // zweimal kein Streaming -> ganze Sätze (mp3)
+            if stromFehler >= 2 { stromGeht = false }
         }
         laedt = true
         let ton = pcStimmeLangsam >= 2 ? nil : await pcTon(satz)          // PC zweimal zu langsam -> nur noch lokal
         laedt = false
         guard !aus else { return }
         if let ton, let p = try? AVAudioPlayer(data: ton) {
+            p.isMeteringEnabled = true
             spieler = p
             p.delegate = self
             p.play()
@@ -378,7 +432,21 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             return
         }
         guard let chat else { sagen(["Moment, ich bin gleich wieder da."]); return }
-        let nachricht = "(Ihr telefoniert gerade – er hat dich angerufen bzw. abgehoben. Antworte kurz, natürlich gesprochen, 1-3 Sätze, ohne Emojis.)\n" + text
+        var nachricht = "(Ihr telefoniert gerade – er hat dich angerufen bzw. abgehoben. Antworte kurz, natürlich gesprochen, 1-3 Sätze, ohne Emojis.)\n" + text
+        var bilder: [String] = []
+        if let augen, augen.laeuft {
+            nachricht = "(Videoanruf: ihr seht euch gerade.) " + nachricht
+            // 👁 Seh-Fragen: aktuelles Kamerabild mitschicken (nicht bei jedem Satz – das würde jede Antwort verlangsamen)
+            if text.lowercased().range(of: #"\b(siehst|sieh|schau|guck|zeig|erkennst|wie seh|wie find|was hab ich|was halte|kamera|hier|das da|dieses|diese)\b"#, options: .regularExpression) != nil,
+               let jpeg = augen.verarbeitung.jpeg(kante: 768), !jpeg.isEmpty,
+               let r = try? await client.hochladen("/api/chat/upload", daten: jpeg, dateiname: "video.jpg", typ: "image/jpeg"),
+               let name = r["name"]?.text {
+                bilder = [name]
+                nachricht = "(Videoanruf: angehängt ist, was seine Kamera gerade zeigt – beziehe dich darauf.) " + nachricht
+            }
+        }
+        denkt = true
+        defer { denkt = false }
         // 💬 kurzer Laut, wenn das Nachdenken dauert (sonst wirkt die Leitung tot)
         let fueller = Task { [weak self] in
             try? await Task.sleep(for: .seconds(2.2))
@@ -401,10 +469,15 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             }
             if ende, start < rest.endIndex { aus.append(String(rest[start...])) }
             gesprochen += rest.distance(from: rest.startIndex, to: ende ? rest.endIndex : start)
+            for roh in aus {                                   // [freude] & Co. -> Gesicht der Figur im Videoanruf
+                if let r = roh.range(of: #"\[([a-zäöü]+)\]"#, options: .regularExpression) {
+                    gefuehl?(String(roh[r]).trimmingCharacters(in: CharacterSet(charactersIn: "[]")))
+                }
+            }
             return aus.map { SiriHilfe.sprechbar($0) }.filter { $0.count > 1 }
         }
         do {
-            for try await ev in client.strom("/api/chats/\(chat)/senden", ["text": nachricht, "modus": "begleiter",
+            for try await ev in client.strom("/api/chats/\(chat)/senden", ["text": nachricht, "modus": "begleiter", "bilder": bilder,
                                                                            "werkzeuge": ["web": false, "bild": false, "gedaechtnis": true, "denken": "aus"]]) {
                 switch ev["t"]?.text ?? "" {
                 case "text":
