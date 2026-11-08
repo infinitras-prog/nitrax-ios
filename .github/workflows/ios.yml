@@ -1,0 +1,124 @@
+# NitraX für iPhone – Cloud-Build auf einem Mac von GitHub (kein eigener Mac nötig)
+#
+# 1) »Prüfen« läuft bei jedem Hochladen: baut die App ohne Signatur – zeigt, ob der Code fehlerfrei ist.
+# 2) »TestFlight« startest du von Hand (Actions → iOS → Run workflow → testflight = true):
+#    signiert mit deinem App-Store-Connect-Schlüssel und lädt die App zu TestFlight hoch.
+#    Benötigte Secrets (Settings → Secrets and variables → Actions):
+#      APPLE_TEAM_ID      – 10-stellige Team-ID (developer.apple.com → Membership)
+#      ASC_KEY_ID         – Key-ID des App-Store-Connect-API-Schlüssels (Rolle »Admin«)
+#      ASC_ISSUER_ID      – Issuer-ID (steht über der Schlüsselliste)
+#      ASC_PRIVATE_KEY    – Inhalt der .p8-Datei (komplett, mit BEGIN/END-Zeilen)
+name: iOS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      testflight:
+        description: "Zu TestFlight hochladen"
+        type: boolean
+        default: true
+
+jobs:
+  pruefen:
+    name: Prüfen (ohne Signatur)
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: XcodeGen installieren
+        run: brew install xcodegen
+      - name: Xcode-Version
+        run: xcodebuild -version
+      - name: Projekt erzeugen
+        run: xcodegen generate
+      - name: Bauen (Simulator, ohne Signatur)
+        run: |
+          set -o pipefail
+          xcodebuild -project NitraX.xcodeproj -scheme NitraX -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO build | tee build.log | grep -E "error:|warning: .*deprecated|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" build.log
+      - name: Protokoll bei Fehler
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+
+  testflight:
+    name: TestFlight
+    needs: pruefen
+    if: github.event_name == 'workflow_dispatch' && inputs.testflight
+    runs-on: macos-15
+    timeout-minutes: 60
+    env:
+      DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Secrets prüfen
+        env:
+          K: ${{ secrets.ASC_KEY_ID }}
+          I: ${{ secrets.ASC_ISSUER_ID }}
+          P: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          for v in DEVELOPMENT_TEAM K I P; do
+            if [ -z "${!v}" ]; then echo "::error::Secret fehlt ($v) – siehe LIESMICH.md"; exit 1; fi
+          done
+      - name: XcodeGen installieren
+        run: brew install xcodegen
+      - name: Projekt erzeugen
+        run: xcodegen generate
+      - name: API-Schlüssel ablegen
+        env:
+          P: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s\n' "$P" > "$RUNNER_TEMP/keys/AuthKey.p8"
+      - name: Archivieren (automatisch signiert)
+        run: |
+          set -o pipefail
+          xcodebuild -project NitraX.xcodeproj -scheme NitraX -configuration Release \
+            -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/NitraX.xcarchive" \
+            CURRENT_PROJECT_VERSION=${{ github.run_number }} \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" \
+            archive | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          grep -q "ARCHIVE SUCCEEDED" archive.log
+      - name: Export-Einstellungen
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>destination</key><string>upload</string>
+            <key>signingStyle</key><string>automatic</string>
+            <key>teamID</key><string>${DEVELOPMENT_TEAM}</string>
+            <key>manageAppVersionAndBuildNumber</key><false/>
+            <key>uploadSymbols</key><true/>
+          </dict></plist>
+          EOF
+      - name: Zu TestFlight hochladen
+        run: |
+          set -o pipefail
+          xcodebuild -exportArchive -archivePath "$RUNNER_TEMP/NitraX.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" -exportPath "$RUNNER_TEMP/export" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$RUNNER_TEMP/keys/AuthKey.p8" \
+            -authenticationKeyID "${{ secrets.ASC_KEY_ID }}" \
+            -authenticationKeyIssuerID "${{ secrets.ASC_ISSUER_ID }}" | tee export.log
+      - name: Protokolle bei Fehler
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: testflight-logs
+          path: |
+            archive.log
+            export.log
+      - name: Schlüssel löschen
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/keys"

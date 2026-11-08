@@ -1,0 +1,165 @@
+import SwiftUI
+
+@MainActor
+struct ErstellenAnsicht: View {
+    @EnvironmentObject private var studio: Studio
+    @State private var kategorie = "video"
+
+    private var liste: [Workflow] { (studio.workflows?.workflows ?? []).filter { $0.kat == kategorie } }
+    private var kategorien: [[String]] {
+        let k = studio.workflows?.kategorien ?? []
+        return k.isEmpty ? [["video", "Video", "🎬"], ["bild", "Bild", "🎨"], ["audio", "Audio", "🎵"]] : k
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 14) {
+                    Picker("Kategorie", selection: $kategorie) {
+                        ForEach(kategorien, id: \.self) { k in Text((k.count > 2 ? k[2] + " " : "") + (k.count > 1 ? k[1] : k[0])).tag(k[0]) }
+                    }
+                    .pickerStyle(.segmented)
+
+                    if studio.workflows == nil {
+                        ProgressView("Workflows werden geladen …").padding(.top, 40)
+                    }
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160), spacing: 12)], spacing: 12) {
+                        ForEach(liste) { w in
+                            NavigationLink { WorkflowFormular(workflow: w) } label: { WorkflowKachel(w: w) }
+                                .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .nxHintergrund()
+            .navigationTitle("Erstellen")
+            .refreshable { await studio.workflowsLaden(neu: true) }
+            .task { await studio.workflowsLaden() }
+        }
+    }
+}
+
+@MainActor
+struct WorkflowKachel: View {
+    var w: Workflow
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(w.glyph).font(.system(size: 26))
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(Farbe.akzent.opacity(0.16)))
+            Text(w.name).font(.subheadline.weight(.semibold)).lineLimit(2).multilineTextAlignment(.leading)
+            Text(w.text).font(.caption).foregroundStyle(.secondary).lineLimit(3).multilineTextAlignment(.leading)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
+        .karte()
+    }
+}
+
+/// Formular eines Workflows - Felder kommen vom PC (handy_wf.py), Start über /api/handy/start
+@MainActor
+struct WorkflowFormular: View {
+    @EnvironmentObject private var studio: Studio
+    @EnvironmentObject private var navigation: Navigation
+    @Environment(\.dismiss) private var dismiss
+    let workflow: Workflow
+    var vorbelegung: [String: JSONWert] = [:]
+    @State private var werte: [String: JSONWert] = [:]
+    @State private var startet = false
+    @State private var fehler: String?
+
+    var body: some View {
+        Form {
+            Section {
+                Text(workflow.text).font(.footnote).foregroundStyle(.secondary)
+            }
+            ForEach(workflow.felder) { f in
+                Section {
+                    FeldEditor(feld: f, workflow: workflow, wert: Binding(get: { werte[f.name] }, set: { werte[f.name] = $0 }), alle: werte)
+                } header: {
+                    if f.art != "schalter" { Text(f.label + (f.pflicht ? " *" : "")) }
+                }
+            }
+            Section {
+                Button {
+                    Task { await starten() }
+                } label: {
+                    HStack {
+                        Spacer()
+                        if startet { ProgressView().tint(.white) } else { Label("Starten", systemImage: "sparkles").font(.headline) }
+                        Spacer()
+                    }
+                    .padding(.vertical, 6)
+                }
+                .listRowBackground(Farbe.verlauf)
+                .foregroundStyle(.white)
+                .disabled(startet)
+                if let fehler { Text(fehler).font(.footnote).foregroundStyle(Farbe.fehler) }
+            }
+        }
+        .scrollContentBackground(.hidden)
+        .nxHintergrund()
+        .navigationTitle(workflow.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { vorbelegen() }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    private func vorbelegen() {
+        let gemerkt = Gemeinsam.defaults.dictionary(forKey: "formular-\(workflow.id)") as? [String: Data] ?? [:]
+        for f in workflow.felder where werte[f.name] == nil {
+            if let d = gemerkt[f.name], let w = try? JSONDecoder().decode(JSONWert.self, from: d),
+               ["wahl", "schalter", "zahl", "stimme", "bildmodell"].contains(f.art) {
+                werte[f.name] = w                                   // Einstellungen vom letzten Mal (nicht Texte/Medien)
+            } else if let w = f.wert {
+                werte[f.name] = w
+            }
+        }
+        for (k, v) in vorbelegung { werte[k] = v }          // z. B. »▶ Animieren« aus einem fertigen Bild
+    }
+
+    private func merken() {
+        var m: [String: Data] = [:]
+        for (k, v) in werte { if let d = try? JSONEncoder().encode(v) { m[k] = d } }
+        Gemeinsam.defaults.set(m, forKey: "formular-\(workflow.id)")
+    }
+
+    private func starten() async {
+        fehler = nil
+        for f in workflow.felder where f.pflicht && (werte[f.name]?.istLeer ?? true) {
+            fehler = "Bitte »\(f.label)« ausfüllen"
+            return
+        }
+        guard let c = studio.client else { return }
+        startet = true
+        defer { startet = false }
+        do {
+            var felder: [String: Any] = [:]
+            for (k, v) in werte { felder[k] = v.alsAny }
+            let r = try await c.post("/api/handy/start", ["wf": workflow.id, "felder": felder], zeit: 900)
+            merken()
+            let text = r["meldung"]?.text?.components(separatedBy: "\n").first ?? "Gestartet"
+            studio.meldung = "✓ " + String(text.prefix(120))
+            await studio.aktualisieren()
+            navigation.reiter = .auftraege
+            dismiss()
+        } catch {
+            fehler = error.localizedDescription
+        }
+    }
+}
+
+extension JSONWert {
+    /// für JSONSerialization
+    var alsAny: Any {
+        switch self {
+        case .text(let t): return t
+        case .zahl(let z): return z
+        case .wahr(let b): return b
+        case .liste(let l): return l.map(\.alsAny)
+        case .objekt(let o): return o.mapValues(\.alsAny)
+        case .nichts: return NSNull()
+        }
+    }
+}

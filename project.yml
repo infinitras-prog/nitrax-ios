@@ -1,0 +1,131 @@
+# NitraX für iPhone – Projektbeschreibung für XcodeGen (erzeugt NitraX.xcodeproj auf dem Mac/in der Cloud).
+# Team-ID kommt aus der Umgebung: DEVELOPMENT_TEAM (GitHub-Secret APPLE_TEAM_ID).
+name: NitraX
+options:
+  bundleIdPrefix: de.infinitras
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  developmentLanguage: de
+settings:
+  base:
+    DEVELOPMENT_TEAM: ${DEVELOPMENT_TEAM}
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1,2"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  NitraX:
+    type: application
+    platform: iOS
+    sources:
+      - path: NitraX
+      - path: Shared
+    info:
+      path: NitraX/Info.plist
+      properties:
+        CFBundleDisplayName: NitraX
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleURLTypes:
+          - CFBundleURLName: de.infinitras.nitrax
+            CFBundleURLSchemes: [nitrax]
+        UILaunchScreen:
+          UIColorName: Splash
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UIBackgroundModes: [fetch, processing]
+        BGTaskSchedulerPermittedIdentifiers: [de.infinitras.nitrax.abholen]
+        NSCameraUsageDescription: Zum Scannen des QR-Codes aus NitraX AI Studio und für Fotos als Startbild.
+        NSMicrophoneUsageDescription: Zum Aufnehmen von Melodien und zum Sprechen mit deinem Helfer.
+        NSPhotoLibraryAddUsageDescription: Damit du fertige Bilder und Videos in deine Fotos sichern kannst.
+        NSLocalNetworkUsageDescription: NitraX verbindet sich mit deinem PC im Heimnetz (NitraX AI Studio).
+        NSFaceIDUsageDescription: Damit nur du NitraX öffnen kannst.
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: NitraX/NitraX.entitlements
+      properties:
+        com.apple.security.application-groups: [group.de.infinitras.nitrax]
+        aps-environment: development
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: NitraXWidget
+      - target: NitraXTeilen
+  NitraXWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NitraXWidget
+      - path: Shared
+    info:
+      path: NitraXWidget/Info.plist
+      properties:
+        CFBundleDisplayName: NitraX
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: NitraXWidget/NitraXWidget.entitlements
+      properties:
+        com.apple.security.application-groups: [group.de.infinitras.nitrax]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax.widget
+        SKIP_INSTALL: YES
+  NitraXTeilen:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: NitraXTeilen
+      - path: Shared
+    info:
+      path: NitraXTeilen/Info.plist
+      properties:
+        CFBundleDisplayName: An NitraX
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.share-services
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).TeilenController
+          NSExtensionAttributes:
+            NSExtensionActivationRule:
+              NSExtensionActivationSupportsImageWithMaxCount: 4
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsLocalNetworking: true
+    entitlements:
+      path: NitraXTeilen/NitraXTeilen.entitlements
+      properties:
+        com.apple.security.application-groups: [group.de.infinitras.nitrax]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: de.infinitras.nitrax.teilen
+        SKIP_INSTALL: YES
+schemes:
+  NitraX:
+    build:
+      targets:
+        NitraX: all
+        NitraXWidget: all
+        NitraXTeilen: all
+    run:
+      config: Debug
+    archive:
+      config: Release
