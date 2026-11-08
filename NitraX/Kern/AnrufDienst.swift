@@ -15,6 +15,11 @@ final class AnrufDienst: NSObject, ObservableObject {
     @Published private(set) var stumm = false
     @Published private(set) var seit: Date?
     @Published private(set) var anrufer = "Dein Helfer"
+    /// 🎙 Anzeige im Anrufbildschirm: dein Mikrofonpegel (0…1), die letzten Werte als Welle, spricht gerade der Helfer
+    @Published private(set) var pegel: Float = 0
+    @Published private(set) var welle: [Float] = Array(repeating: 0, count: 48)
+    @Published private(set) var helferSpricht = false
+    private var anzeigeTakt: Timer?
 
     private let registrierung = PKPushRegistry(queue: .main)
     private let anbieter: CXProvider
@@ -139,6 +144,11 @@ extension AnrufDienst: CXProviderDelegate {
         Task { @MainActor in
             self.gespraech?.beenden()
             self.gespraech = nil
+            self.anzeigeTakt?.invalidate()
+            self.anzeigeTakt = nil
+            self.pegel = 0
+            self.welle = Array(repeating: 0, count: 48)
+            self.helferSpricht = false
             self.aktiv = nil
             self.imGespraech = false
             self.seit = nil
@@ -154,6 +164,17 @@ extension AnrufDienst: CXProviderDelegate {
             g.aufgelegt = { [weak self] in self?.auflegen() }
             self.gespraech = g
             g.starten()
+            self.anzeigeTakt?.invalidate()
+            self.anzeigeTakt = Timer.scheduledTimer(withTimeInterval: 1.0 / 30, repeats: true) { [weak self] _ in
+                Task { @MainActor in
+                    guard let self, let g = self.gespraech else { return }
+                    let p = self.stumm ? 0 : g.eingangPegel
+                    self.pegel = self.pegel * 0.5 + p * 0.5
+                    self.welle.removeFirst()
+                    self.welle.append(p)
+                    self.helferSpricht = g.helferRedet
+                }
+            }
         }
     }
 
@@ -186,6 +207,11 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private var stille = 0
     private var stimme: String?
     private var pcStimmeLangsam = 0
+    private let strom = StromSpieler()
+    private var stromGeht = true
+    private var stromLaeuft = false
+    var eingangPegel: Float { ohr.pegel }
+    var helferRedet: Bool { spieler != nil || lokalSpricht || stromLaeuft }
     private var ersterSatz = true
 
     init(client: NXClient, begruessung: String) {
@@ -199,9 +225,18 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     func starten() {
         ohr.satzFertig = { [weak self] wav in Task { await self?.gehoert(wav) } }
         ohr.insWortGefallen = { [weak self] in self?.stillSein() }
+        ohr.stilleEnde = 0.6                                     // ⚡ Satzende schneller erkennen
         Task {
-            if let c = try? await client.post("/api/begleiter/chat", [:]) { chat = c["id"]?.text }
-            if let b = try? await client.get("/api/begleiter", JSONWert.self) { stimme = b["einst"]?["stimme"]?.text }
+            let b = try? await client.get("/api/begleiter", JSONWert.self)
+            stimme = b?["einst"]?["stimme"]?.text
+            // ⚡ eigener, schlanker Telefonat-Chat (der große Helfer-Chat mit allem Verlauf machte jede Antwort langsam);
+            // er erscheint im Gesprächsverlauf, das Gedächtnis des Helfers gilt trotzdem
+            var neu: [String: Any] = ["art": "begleiter"]
+            if let m = b?["einst"]?["modell"]?.text, !m.isEmpty { neu["modell"] = m }
+            if let c = try? await client.post("/api/chats", neu), let id = c["id"]?.text {
+                chat = id
+                _ = try? await client.post("/api/chats/\(id)/aendern", ["titel": "📞 Telefonat " + Date().formatted(date: .abbreviated, time: .shortened)])
+            } else if let c = try? await client.post("/api/begleiter/chat", [:]) { chat = c["id"]?.text }
             // ⚡ Stimme + Sprachmodell am PC sofort laden (nach einem NitraX-Neustart dauerte die erste Antwort sonst > 1 min)
             var vor: [String: Any] = ["sprache": "German"]
             if let stimme, !stimme.isEmpty { vor["stimme"] = stimme }
@@ -221,6 +256,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         spieler?.stop()
         spieler = nil
         lokal.stopSpeaking(at: .immediate)
+        strom.stoppen()
     }
 
     private func stillSein() {
@@ -228,10 +264,11 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         spieler?.stop()
         spieler = nil
         if lokalSpricht { lokal.stopSpeaking(at: .immediate); lokalSpricht = false }
+        if stromLaeuft { strom.stoppen(); stromLaeuft = false }
         ohr.helferZustand = "hoeren"
     }
 
-    private var redet: Bool { spieler != nil || lokalSpricht || laedt }
+    private var redet: Bool { spieler != nil || lokalSpricht || laedt || stromLaeuft }
     private var laedt = false
 
     private func sagen(_ saetze: [String]) {
@@ -243,6 +280,15 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         guard !aus, !warteschlange.isEmpty else { if !redet { ohr.helferZustand = "ruhe" }; return }
         let satz = warteschlange.removeFirst()
         ohr.helferZustand = "sprechen"
+        // ⚡ 1. Wahl: gestreamte Stimme – erster Ton nach ~0,3 s
+        if stromGeht, pcStimmeLangsam < 2, let anfrage = stromAnfrage(satz) {
+            stromLaeuft = true
+            let ok = await strom.spielen(anfrage)
+            stromLaeuft = false
+            guard !aus else { return }
+            if ok { await naechster(); return }
+            stromGeht = false                                   // kein Streaming am PC -> ganze Sätze (mp3)
+        }
         laedt = true
         let ton = pcStimmeLangsam >= 2 ? nil : await pcTon(satz)          // PC zweimal zu langsam -> nur noch lokal
         laedt = false
@@ -254,6 +300,19 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         } else {
             lokalSprechen(satz)
         }
+    }
+
+    private func stromAnfrage(_ satz: String) -> URLRequest? {
+        var body: [String: Any] = ["text": satz, "sprache": "de"]
+        if let stimme, !stimme.isEmpty { body["stimme"] = stimme }
+        guard let url = client.url("/api/anruf/sprechen_strom"), let daten = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        var r = URLRequest(url: url)
+        r.httpMethod = "POST"
+        r.httpBody = daten
+        r.timeoutInterval = 20
+        r.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (k, w) in client.cookieKopf { r.setValue(w, forHTTPHeaderField: k) }
+        return r
     }
 
     /// Satz von der PC-Stimme (mp3) – nil, wenn sie nicht in 20 s (erster Satz: 35 s) liefert
@@ -322,7 +381,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         let nachricht = "(Ihr telefoniert gerade – er hat dich angerufen bzw. abgehoben. Antworte kurz, natürlich gesprochen, 1-3 Sätze, ohne Emojis.)\n" + text
         // 💬 kurzer Laut, wenn das Nachdenken dauert (sonst wirkt die Leitung tot)
         let fueller = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(3.5))
+            try? await Task.sleep(for: .seconds(2.2))
             guard let self, !Task.isCancelled, !self.redet else { return }
             self.lokalSprechen(["Mhm, Moment.", "Mhm, lass mich kurz überlegen.", "Moment."].randomElement()!)
         }
@@ -346,7 +405,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         }
         do {
             for try await ev in client.strom("/api/chats/\(chat)/senden", ["text": nachricht, "modus": "begleiter",
-                                                                           "werkzeuge": ["web": true, "bild": true, "gedaechtnis": true, "denken": "aus"]]) {
+                                                                           "werkzeuge": ["web": false, "bild": false, "gedaechtnis": true, "denken": "aus"]]) {
                 switch ev["t"]?.text ?? "" {
                 case "text":
                     ganz += ev["d"]?.text ?? ""

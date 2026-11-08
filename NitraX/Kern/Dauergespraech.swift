@@ -14,6 +14,8 @@ final class Dauergespraech: ObservableObject {
     var helferZustand = "ruhe"
     var satzFertig: ((Data) -> Void)?
     var insWortGefallen: (() -> Void)?
+    /// so lange Stille = Satz zu Ende (Telefonat: kürzer, damit die Antwort schneller kommt)
+    var stilleEnde: TimeInterval = 0.85
 
     private let motor = AVAudioEngine()
     private var konverter: AVAudioConverter?
@@ -85,7 +87,7 @@ final class Dauergespraech: ObservableObject {
             puffer.append(roh)
             if db > schwelle { stilleSeit = nil } else if stilleSeit == nil { stilleSeit = jetzt }
             let lang = jetzt.timeIntervalSince(satzStart ?? jetzt)
-            if let st = stilleSeit, jetzt.timeIntervalSince(st) > 0.85 || lang > 25 {
+            if let st = stilleSeit, jetzt.timeIntervalSince(st) > stilleEnde || lang > 25 {
                 if lang > 0.6 {
                     phase = .versteht
                     satzFertig?(Self.wav(puffer))

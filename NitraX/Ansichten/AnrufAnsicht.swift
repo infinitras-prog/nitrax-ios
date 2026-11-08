@@ -12,10 +12,22 @@ struct AnrufAnsicht: View {
             VStack(spacing: 18) {
                 Spacer()
                 ZStack {
+                    // 🎙 du sprichst: Kreis leuchtet türkis mit deinem Pegel · 🔊 der Helfer spricht: warm im Bernstein-Ton
+                    let p = CGFloat(dienst.pegel)
+                    let farbe = dienst.helferSpricht ? Farbe.akzent : Color(red: 0.13, green: 0.83, blue: 0.93)
+                    let an = dienst.helferSpricht ? 0.75 : min(1, p * 1.6)
+                    Circle().fill(farbe.opacity(0.35 * an)).frame(width: 190, height: 190).blur(radius: 28)
+                        .scaleEffect(1 + 0.25 * an)
                     Circle().stroke(Farbe.ring, lineWidth: 3).frame(width: 150, height: 150).scaleEffect(puls ? 1.12 : 1).opacity(puls ? 0.2 : 0.9)
+                    Circle().stroke(farbe, lineWidth: 4).frame(width: 140, height: 140)
+                        .opacity(0.25 + 0.75 * an).shadow(color: farbe, radius: 6 + 18 * an).scaleEffect(1 + 0.08 * an)
                     Circle().fill(Farbe.panel).frame(width: 130, height: 130)
-                    Image(systemName: "person.wave.2.fill").font(.system(size: 52)).foregroundStyle(Farbe.akzent)
+                    Image(systemName: dienst.helferSpricht ? "waveform" : "person.wave.2.fill").font(.system(size: 52))
+                        .foregroundStyle(Farbe.akzent).symbolEffect(.variableColor.iterative, isActive: dienst.helferSpricht)
+                        .contentTransition(.symbolEffect(.replace))
                 }
+                .animation(.easeOut(duration: 0.12), value: dienst.pegel)
+                .animation(.easeInOut(duration: 0.3), value: dienst.helferSpricht)
                 .onAppear { withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { puls = true } }
                 Text(dienst.anrufer).font(.title.bold())
                 if let seit = dienst.seit {
@@ -24,6 +36,14 @@ struct AnrufAnsicht: View {
                         Text(String(format: "%d:%02d", s / 60, s % 60)).font(.title3.monospacedDigit()).foregroundStyle(.secondary)
                     }
                 }
+                Spacer()
+                // 〰 deine Stimme als Welle
+                AnrufWelle(werte: dienst.welle, aktiv: !dienst.stumm)
+                    .frame(height: 90)
+                    .padding(.horizontal, 30)
+                Text(dienst.stumm ? "Stumm" : dienst.helferSpricht ? "\(dienst.anrufer) spricht …" : "Ich höre zu …")
+                    .font(.footnote).foregroundStyle(.secondary)
+                    .animation(.easeInOut, value: dienst.helferSpricht)
                 Spacer()
                 HStack(spacing: 40) {
                     knopf(dienst.stumm ? "mic.slash.fill" : "mic.fill", "Stumm", an: dienst.stumm) { dienst.stummUmschalten() }
@@ -48,5 +68,32 @@ struct AnrufAnsicht: View {
             }
         }
         .buttonStyle(NXDruck())
+    }
+}
+
+
+/// Wellenbalken: die letzten ~1,6 s deines Mikrofonpegels, gespiegelt um die Mitte
+struct AnrufWelle: View {
+    let werte: [Float]
+    let aktiv: Bool
+
+    var body: some View {
+        GeometryReader { g in
+            let n = max(1, werte.count)
+            let breite = g.size.width / CGFloat(n)
+            HStack(alignment: .center, spacing: breite * 0.35) {
+                ForEach(0..<n, id: \.self) { i in
+                    let w = i < werte.count ? werte[i] : 0
+                    let h = max(4, CGFloat(aktiv ? w : 0) * g.size.height * 1.15)
+                    Capsule()
+                        .fill(LinearGradient(colors: [Color(red: 0.13, green: 0.83, blue: 0.93), Color(red: 0.55, green: 0.36, blue: 1)],
+                                             startPoint: .top, endPoint: .bottom))
+                        .frame(width: breite * 0.65, height: min(g.size.height, h))
+                        .opacity(0.35 + 0.65 * Double(i) / Double(n))
+                }
+            }
+            .frame(width: g.size.width, height: g.size.height)
+        }
+        .animation(.linear(duration: 0.05), value: werte)
     }
 }
