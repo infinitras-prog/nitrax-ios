@@ -77,7 +77,7 @@ enum SiriHilfe {
 
 struct HelferFragen: AppIntent {
     static var title: LocalizedStringResource = "Helfer fragen"
-    static var description = IntentDescription("Stellt deinem NitraX-Helfer eine Frage – Siri liest die Antwort vor.")
+    static var description = IntentDescription("Stellt deinem NitraX-Helfer eine Frage und liest dir die Antwort vor.")
     static var openAppWhenRun: Bool = false
 
     @Parameter(title: "Frage", requestValueDialog: IntentDialog("Was möchtest du deinen Helfer fragen?"))
