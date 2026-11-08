@@ -78,6 +78,8 @@ struct StudioAnsicht: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    NXWortmarke(hoehe: 50)                              // ✨ animiertes Logo wie am PC
+                        .padding(.leading, 6).padding(.top, 2).padding(.bottom, 4)
                     BuehneKarte()
                     pcKarte
                     SiriTipView(intent: HelferGespraech(), isVisible: $siriTipp).siriTipViewStyle(.dark)
@@ -89,16 +91,10 @@ struct StudioAnsicht: View {
                 .padding(16)
             }
             .nxHintergrund()
-            .navigationTitle("NitraX")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 // Logo mit kreisendem Lichtrand wie am PC
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 10) {
-                        NXLogo(groesse: 26)
-                        Text("NitraX").font(.headline.weight(.semibold)) + Text("  AI Studio").font(.subheadline).foregroundColor(.secondary)
-                    }
-                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { einstellungen = true } label: { Image(systemName: "gearshape") }
                 }
