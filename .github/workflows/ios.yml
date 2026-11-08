@@ -95,7 +95,7 @@ jobs:
       - name: Archivieren (manuell signiert)
         run: |
           set -o pipefail
-          xcodebuild -project NitraX.xcodeproj -scheme NitraX -configuration Release             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/NitraX.xcarchive"             CURRENT_PROJECT_VERSION=${{ github.run_number }}             MARKETING_VERSION="$(tr -d '[:space:]' < VERSION).${{ github.run_number }}"             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution"             OTHER_CODE_SIGN_FLAGS="--keychain $NX_KEYCHAIN"             NX_PROFIL_APP="$NX_PROFIL_APP" NX_PROFIL_WIDGET="$NX_PROFIL_WIDGET" NX_PROFIL_TEILEN="$NX_PROFIL_TEILEN" NX_PROFIL_MITTEILUNG="$NX_PROFIL_MITTEILUNG"             archive | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
+          xcodebuild -project NitraX.xcodeproj -scheme NitraX -configuration Release             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/NitraX.xcarchive"             CURRENT_PROJECT_VERSION=${{ github.run_number }}             MARKETING_VERSION="$(tr -d '[:space:]' < VERSION)"             CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="Apple Distribution"             OTHER_CODE_SIGN_FLAGS="--keychain $NX_KEYCHAIN"             NX_PROFIL_APP="$NX_PROFIL_APP" NX_PROFIL_WIDGET="$NX_PROFIL_WIDGET" NX_PROFIL_TEILEN="$NX_PROFIL_TEILEN" NX_PROFIL_MITTEILUNG="$NX_PROFIL_MITTEILUNG"             archive | tee archive.log | grep -E "error:|ARCHIVE (SUCCEEDED|FAILED)" || true
           grep -q "ARCHIVE SUCCEEDED" archive.log
       - name: Export-Einstellungen
         run: |
