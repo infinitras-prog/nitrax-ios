@@ -55,6 +55,17 @@ enum JSONWert: Codable, Hashable {
         default: return nil
         }
     }
+    /// Für JSONSerialization (Anfragen an den PC)
+    var roh: Any {
+        switch self {
+        case .text(let t): return t
+        case .zahl(let z): return z
+        case .wahr(let b): return b
+        case .liste(let l): return l.map { $0.roh }
+        case .objekt(let o): return o.mapValues { $0.roh }
+        case .nichts: return NSNull()
+        }
+    }
     var liste: [JSONWert]? { if case .liste(let l) = self { return l }; return nil }
     var objekt: [String: JSONWert]? { if case .objekt(let o) = self { return o }; return nil }
     subscript(_ k: String) -> JSONWert? { objekt?[k] }

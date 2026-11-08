@@ -37,16 +37,21 @@ struct FeldEditor: View {
     @State private var helferVarianten: [String] = []
     @State private var helferLaeuft = false
     @State private var fehler: String?
+    @State private var kiLaeuft: String?          // "vorschlag" / "verbessern"
+    @State private var kiVorher: String?          // ↩ zurück zum eigenen Text
 
     var body: some View {
         Group {
             switch feld.art {
             case "text":
-                TextField(feld.platz ?? "", text: textBindung)
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField(feld.platz ?? "", text: textBindung)
+                    if feld.ki { automatikLeiste }
+                }
             case "lang":
                 VStack(alignment: .leading, spacing: 8) {
                     TextField(feld.platz ?? "", text: textBindung, axis: .vertical).lineLimit(3...10)
-                    if feld.ki { promptHelferKnopf }
+                    if feld.ki { automatikLeiste }
                 }
             case "zahl":
                 HStack {
@@ -104,7 +109,7 @@ struct FeldEditor: View {
             }
         }
         .overlay(alignment: .topTrailing) { if laedtHoch { ProgressView().controlSize(.small) } }
-        .alert("Hochladen", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
+        .alert("Hinweis", isPresented: Binding(get: { fehler != nil }, set: { if !$0 { fehler = nil } })) {
             Button("OK", role: .cancel) {}
         } message: { Text(fehler ?? "") }
     }
@@ -275,16 +280,56 @@ struct FeldEditor: View {
 
     // MARK: Prompt-Helfer (wie am PC: eigene Worte -> Prompt, nochmal = andere Variante)
 
-    private var promptHelferKnopf: some View {
-        HStack {
-            Button {
-                Task { await promptHelfer() }
-            } label: {
-                if helferLaeuft { ProgressView().controlSize(.small) } else { Label(helferVarianten.isEmpty ? "Prompt-Helfer" : "Andere Variante", systemImage: "wand.and.stars") }
+    /// 🎲 Vorschlag (Autoprompt: die Regie-KI schreibt passend zu Bild und Einstellungen), ✨ Verbessern,
+    /// 🪄 Prompt-Helfer (eigene Worte -> Prompt, nochmal = andere Variante), ↩ zurück - wie in der Handy-Seite.
+    private var automatikLeiste: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                kiKnopf("Vorschlag", symbol: "dice", modus: "vorschlag")
+                kiKnopf("Verbessern", symbol: "sparkles", modus: "verbessern")
+                Button {
+                    Task { await promptHelfer() }
+                } label: {
+                    if helferLaeuft { ProgressView().controlSize(.small) }
+                    else { Label(helferVarianten.isEmpty ? "Prompt-Helfer" : "Variante \(helferVarianten.count + 1)", systemImage: "wand.and.stars") }
+                }
+                .disabled(helferLaeuft || kiLaeuft != nil)
+                if let v = kiVorher {
+                    Button { wert = .text(v); kiVorher = nil } label: { Label("Zurück", systemImage: "arrow.uturn.backward") }
+                }
             }
-            .buttonStyle(.bordered).font(.footnote).disabled(helferLaeuft)
-            if !helferVarianten.isEmpty { Text("Variante \(helferVarianten.count)").font(.caption).foregroundStyle(.secondary) }
+            .buttonStyle(.bordered).font(.footnote)
         }
+    }
+
+    private func kiKnopf(_ titel: String, symbol: String, modus: String) -> some View {
+        Button {
+            Task { await kiText(modus) }
+        } label: {
+            if kiLaeuft == modus { HStack(spacing: 6) { ProgressView().controlSize(.small); Text(modus == "verbessern" ? "verbessert …" : "denkt …") } }
+            else { Label(titel, systemImage: symbol) }
+        }
+        .disabled(kiLaeuft != nil || helferLaeuft)
+    }
+
+    private func kiText(_ modus: String) async {
+        guard let c = studio.client else { return }
+        let text = wert?.text ?? ""
+        if modus == "verbessern" && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            fehler = "Erst etwas eintippen – dann verbessert die KI es."
+            return
+        }
+        kiLaeuft = modus
+        defer { kiLaeuft = nil }
+        var felder: [String: Any] = [:]
+        for (k, v) in alle { felder[k] = v.roh }
+        do {
+            let r = try await c.post("/api/handy/prompt", ["wf": workflow.id, "modus": modus, "text": text, "felder": felder], zeit: 180)
+            guard let neu = r["text"]?.text, !neu.isEmpty else { throw NXFehler.antwort }
+            kiVorher = text
+            wert = .text(neu)
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        } catch { fehler = error.localizedDescription }
     }
 
     private func promptHelfer() async {
