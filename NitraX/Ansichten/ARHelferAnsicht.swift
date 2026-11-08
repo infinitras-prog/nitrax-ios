@@ -67,7 +67,7 @@ struct ARModellDaten {
                 mat.blending = .transparent(opacity: .init(floatLiteral: t.farbe.w))
                 mat.opacityThreshold = 0.35                       // Haare/Wimpern: ausgeschnittene Kanten statt Schleier
             }
-            mat.faceCulling = .none
+            if #available(iOS 18.0, *) { mat.faceCulling = .none }       // Haare/Kleid von beiden Seiten sichtbar
             wurzel.addChild(ModelEntity(mesh: netz, materials: [mat]))
         }
         let b = wurzel.visualBounds(relativeTo: wurzel)

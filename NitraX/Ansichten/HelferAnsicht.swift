@@ -44,12 +44,6 @@ struct HelferAnsicht: View {
         }
         .overlay(alignment: .topTrailing) {
             VStack(spacing: 10) {
-                // 🎙 Freihändig: einfach losreden, ins Wort fallen
-                Button { freihand.toggle() } label: {
-                    Image(systemName: freihand ? "waveform.circle.fill" : "waveform.circle").frame(width: 20, height: 20).padding(10)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay(Circle().stroke(Color.pink.opacity(freihand ? Double(0.35 + dauer.pegel * 0.65) : 0), lineWidth: 2))
-                }
                 // 🥽 AR: Helfer ins Zimmer stellen
                 Button { ar = true } label: {
                     Image(systemName: "arkit").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
@@ -60,6 +54,13 @@ struct HelferAnsicht: View {
                     Image(systemName: augenAn ? "eye.fill" : "eye.slash").frame(width: 20, height: 20).padding(10)
                         .background(.ultraThinMaterial, in: Circle())
                         .overlay(Circle().stroke(augen.laeuft ? Color.green.opacity(0.8) : .clear, lineWidth: 1.5))
+                }
+                if augen.laeuft {
+                    // 🔄 Front-/Rückkamera: Dinge zeigen
+                    Button { augen.drehen() } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath.camera").frame(width: 20, height: 20).padding(10)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
                 }
                 // 📷 Foto für den Helfer: er schaut es sich an und antwortet
                 Button { kamera = true } label: {
@@ -83,8 +84,12 @@ struct HelferAnsicht: View {
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.35), lineWidth: 1))
                     .overlay(alignment: .bottomTrailing) { Circle().fill(.green).frame(width: 8, height: 8).padding(6) }
+                    .overlay(alignment: .topLeading) {
+                        Text(augen.front ? "du" : "zeigen").font(.system(size: 9, weight: .semibold)).padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(.black.opacity(0.45), in: Capsule()).padding(5)
+                    }
                     .padding(.leading, 12).padding(.top, 58)
-                    .allowsHitTesting(false)
+                    .onTapGesture { augen.drehen() }
                     .transition(.scale.combined(with: .opacity))
             }
         }
@@ -142,7 +147,11 @@ struct HelferAnsicht: View {
 
     /// 🎙 Dauergespräch an/aus - erkannter Satz geht an den Helfer, Reinsprechen macht ihn still
     private func freihandSchalten(_ an: Bool) {
-        guard an, bruecke.bereit, let c = studio.client else { dauer.stoppen(); return }
+        guard an, bruecke.bereit, let c = studio.client else {
+            if dauer.phase != .aus { dauer.stoppen() }
+            bruecke.js("window.nxIOSZustand && window.nxIOSZustand(false, '')")
+            return
+        }
         bruecke.dauer = dauer
         dauer.insWortGefallen = { [weak bruecke] in
             bruecke?.js("window.nxHandyHelfer && window.nxHandyHelfer.unterbrechen && window.nxHandyHelfer.unterbrechen()")
@@ -159,8 +168,10 @@ struct HelferAnsicht: View {
         }
         Task {
             guard await AVAudioApplication.requestRecordPermission() else { studio.meldung = "Mikrofon ist für NitraX nicht erlaubt"; freihand = false; return }
-            do { try dauer.starten(); UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-            catch { studio.meldung = error.localizedDescription; freihand = false }
+            do {
+                try dauer.starten()
+                bruecke.js("window.nxIOSZustand && window.nxIOSZustand(true, '🎙 Ich höre zu – sprich einfach. Nochmal 🎤 = aus')")
+            } catch { studio.meldung = error.localizedDescription; freihand = false }
         }
     }
 
@@ -172,7 +183,7 @@ struct HelferAnsicht: View {
         }
         if navigation.helferZuhoeren {
             navigation.helferZuhoeren = false
-            bruecke.zuhoeren()
+            freihand = true                                // »Sprich mit NitraX« / Kontrollzentrum: Dauergespräch an
         }
     }
 }
@@ -404,10 +415,12 @@ struct HelferWeb: UIViewRepresentable {
                 } else if name == "nxHaptik" {
                     let n = max(1, min(6, Int(message.body as? Int ?? (message.body as? NSNumber)?.intValue ?? 1)))
                     for i in 0..<n { DispatchQueue.main.asyncAfter(deadline: .now() + Double(i) * 0.075) { self.haptik.impactOccurred(intensity: 0.7) } }
-                } else if let d = self.bruecke.dauer, d.phase != .aus {
-                    d.stoppen()                                    // 🎤 tippen während Freihand = Freihand aus
-                    UserDefaults.standard.set(false, forKey: "helfer_freihand")
-                } else if befehl == "start" { await self.zuhoerer.starten() } else { self.zuhoerer.stoppen() }
+                } else if name == "nxMikro" {
+                    // 🎤 = Dauergespräch an/aus (einfach losreden, ins Wort fallen)
+                    let an = !(UserDefaults.standard.bool(forKey: "helfer_freihand"))
+                    UserDefaults.standard.set(an, forKey: "helfer_freihand")
+                    UIImpactFeedbackGenerator(style: an ? .medium : .light).impactOccurred()
+                }
             }
         }
 
@@ -467,8 +480,9 @@ struct HelferWeb: UIViewRepresentable {
             do {
                 let r = try await client.hochladen("/api/begleiter/kamera", daten: augen.verarbeitung.jpeg() ?? bild, dateiname: "blick.jpg", typ: "image/jpeg", felder: ["art": "beschreiben"])
                 let t = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-                var a: [String: String] = ["text": t.isEmpty ? "deine Handykamera liefert gerade kein klares Bild"
-                                                             : "durch die Handykamera (Frontkamera, er hält das Handy) siehst du: " + t]
+                let wie = augen.front ? "durch die Handykamera (Frontkamera, er hält das Handy) siehst du: "
+                                      : "er zeigt dir gerade etwas mit der Rückkamera seines Handys – du siehst: "
+                var a: [String: String] = ["text": t.isEmpty ? "deine Handykamera liefert gerade kein klares Bild" : wie + t]
                 if let name { a["bild"] = name }
                 return a
             } catch {

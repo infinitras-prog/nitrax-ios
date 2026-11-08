@@ -89,7 +89,15 @@ struct StudioAnsicht: View {
             }
             .nxHintergrund()
             .navigationTitle("NitraX")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                // Logo mit kreisendem Lichtrand wie am PC
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 10) {
+                        NXLogo(groesse: 26)
+                        Text("NitraX").font(.headline.weight(.semibold)) + Text("  AI Studio").font(.subheadline).foregroundColor(.secondary)
+                    }
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { einstellungen = true } label: { Image(systemName: "gearshape") }
                 }

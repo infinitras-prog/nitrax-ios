@@ -66,6 +66,21 @@ struct NitraXApp: App {
     @State private var splash = true
     @Environment(\.scenePhase) private var phase
 
+    init() {
+        // Leisten im PC-Look: Glas über Nachtgrau
+        let tab = UITabBarAppearance()
+        tab.configureWithDefaultBackground()
+        tab.backgroundColor = UIColor(red: 0.051, green: 0.059, blue: 0.075, alpha: 0.72)
+        UITabBar.appearance().standardAppearance = tab
+        UITabBar.appearance().scrollEdgeAppearance = tab
+        let nav = UINavigationBarAppearance()
+        nav.configureWithTransparentBackground()
+        nav.backgroundEffect = UIBlurEffect(style: .systemChromeMaterialDark)
+        nav.backgroundColor = UIColor(red: 0.051, green: 0.059, blue: 0.075, alpha: 0.55)
+        UINavigationBar.appearance().standardAppearance = nav
+        UINavigationBar.appearance().compactAppearance = nav
+    }
+
     var body: some Scene {
         WindowGroup {
             Group {

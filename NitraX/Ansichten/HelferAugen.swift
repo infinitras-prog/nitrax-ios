@@ -8,6 +8,7 @@ import CoreImage
 @MainActor
 final class HelferAugen: ObservableObject {
     @Published private(set) var laeuft = false
+    @Published private(set) var front = true          // false = Rückkamera (Dinge zeigen)
     @Published var fehler: String?
     let sitzung = AVCaptureSession()
     let verarbeitung = AugenVerarbeitung()
@@ -26,7 +27,7 @@ final class HelferAugen: ObservableObject {
         if !eingerichtet {
             sitzung.beginConfiguration()
             if sitzung.canSetSessionPreset(.vga640x480) { sitzung.sessionPreset = .vga640x480 }
-            guard let geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
+            guard let geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: front ? .front : .back),
                   let eingang = try? AVCaptureDeviceInput(device: geraet), sitzung.canAddInput(eingang) else {
                 sitzung.commitConfiguration()
                 fehler = "Keine Frontkamera gefunden."
@@ -51,6 +52,24 @@ final class HelferAugen: ObservableObject {
         if !laeuft { fehler = "Die Kamera startet gerade nicht (von einer anderen App belegt?)." }
     }
 
+    /// 🔄 Front ⇄ Rück: Eingang tauschen, ohne die Sitzung neu aufzubauen
+    func drehen() {
+        let neu: AVCaptureDevice.Position = front ? .back : .front
+        guard eingerichtet, let geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: neu),
+              let eingang = try? AVCaptureDeviceInput(device: geraet) else { return }
+        sitzung.beginConfiguration()
+        for alt in sitzung.inputs { sitzung.removeInput(alt) }
+        if sitzung.canAddInput(eingang) { sitzung.addInput(eingang) }
+        if let c = (sitzung.outputs.first as? AVCaptureVideoDataOutput)?.connection(with: .video) {
+            if c.isVideoRotationAngleSupported(90) { c.videoRotationAngle = 90 }
+            if c.isVideoMirroringSupported { c.automaticallyAdjustsVideoMirroring = false; c.isVideoMirrored = false }
+        }
+        sitzung.commitConfiguration()
+        front = neu == .front
+        verarbeitung.gesichterSuchen = front              // Blickkontakt nur, wenn du selbst im Bild bist
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
     func stoppen() {
         guard laeuft else { return }
         laeuft = false
@@ -65,6 +84,7 @@ final class AugenVerarbeitung: NSObject, AVCaptureVideoDataOutputSampleBufferDel
     private var bild: CVPixelBuffer?
     private var zaehler = 0
     private let kontext = CIContext()
+    var gesichterSuchen = true
     /// x, y in -1…1 (x > 0 = zu deiner rechten Seite, y > 0 = oben) - wird auf dem Hauptthread gemeldet
     var blick: (@Sendable (Double, Double) -> Void)?
 
@@ -72,7 +92,7 @@ final class AugenVerarbeitung: NSObject, AVCaptureVideoDataOutputSampleBufferDel
         guard let pb = CMSampleBufferGetImageBuffer(sb) else { return }
         sperre.lock(); bild = pb; sperre.unlock()
         zaehler += 1
-        guard zaehler % 5 == 0, let melden = blick else { return }           // ~6 Gesichtssuchen pro Sekunde reichen
+        guard zaehler % 5 == 0, gesichterSuchen, let melden = blick else { return }           // ~6 Gesichtssuchen pro Sekunde reichen
         let anfrage = VNDetectFaceRectanglesRequest()
         try? VNImageRequestHandler(cvPixelBuffer: pb, orientation: .up).perform([anfrage])
         guard let g = anfrage.results?.max(by: { $0.boundingBox.width < $1.boundingBox.width }) else { return }

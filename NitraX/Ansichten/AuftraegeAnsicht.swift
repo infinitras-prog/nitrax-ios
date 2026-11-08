@@ -103,6 +103,7 @@ struct AuftragZeile: View {
             }
         }
         .padding(.vertical, 4)
+        .laufGlut(a.laeuft)
     }
 }
 
