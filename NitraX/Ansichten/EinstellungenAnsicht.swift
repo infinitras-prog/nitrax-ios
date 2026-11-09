@@ -14,6 +14,8 @@ struct EinstellungenAnsicht: View {
     @AppStorage("echo_aec") private var echoAEC = false
     @AppStorage("stimme_strom") private var stimmeStrom = true
     @AppStorage("spar_modus") private var sparModus = "auto"
+    @State private var suche = ""
+    @State private var neuZeigen = false
     @State private var ruheAn = Ruhezeit.an
     @State private var ruheVon = EinstellungenAnsicht.datum(Ruhezeit.von)
     @State private var ruheBis = EinstellungenAnsicht.datum(Ruhezeit.bis)
@@ -45,6 +47,7 @@ struct EinstellungenAnsicht: View {
                     Button { scannen = true } label: { Label("Weitere Adresse scannen (z. B. Tailscale)", systemImage: "qrcode.viewfinder") }
                     NavigationLink { VerbindungsDoktor() } label: { Label("Verbindung prüfen", systemImage: "stethoscope") }
                     NavigationLink { GeraeteAnsicht() } label: { Label("Geräte & Schlüssel", systemImage: "lock.shield") }
+                    NavigationLink { SystemzustandAnsicht() } label: { Label("Systemzustand", systemImage: "waveform.path.ecg") }
                     NavigationLink { SelbsttestAnsicht() } label: {
                         HStack {
                             Label("Selbsttest", systemImage: "checklist")
@@ -57,11 +60,16 @@ struct EinstellungenAnsicht: View {
                 } header: { Text("PC-Verbindung") } footer: {
                     Text("Die App nimmt automatisch die erste erreichbare Adresse – zu Hause das WLAN, unterwegs Tailscale.")
                 }
+                .such(suche, "PC Verbindung Adresse Tailscale QR scannen Doktor prüfen Geräte Schlüssel sperren Systemzustand Selbsttest Fehler")
+
+                Section("📞 Anrufe") {
+                    Toggle("⚡ Ihre Stimme sofort abspielen", isOn: $stimmeStrom)
+                    Toggle("🔇 Echo-Unterdrückung (experimentell)", isOn: $echoAEC)
+                }
+                .such(suche, "Anruf Telefon Stimme sofort Streaming Echo Lautsprecher")
 
                 Section("Mitteilungen") {
                     Toggle("Bei fertigen Aufträgen und Nachrichten vom Helfer", isOn: $mitteilungen)
-                    Toggle("🔇 Echo-Unterdrückung im Anruf (experimentell)", isOn: $echoAEC)
-                    Toggle("⚡ Ihre Stimme sofort abspielen (experimentell)", isOn: $stimmeStrom)
                     Toggle("🔔 Klang, wenn ein Auftrag fertig wird", isOn: $fertigKlang)
                         .onChange(of: fertigKlang) { _, an in if an { FertigKlang.spielen() } }
                         .onChange(of: mitteilungen) { _, an in Benachrichtigungen.an = an }
@@ -89,6 +97,7 @@ struct EinstellungenAnsicht: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .task { if let c = studio.client { push = await Push.stand(c) } }
+                .such(suche, "Mitteilungen Push Klang Benachrichtigung Ton fertig")
 
                 Section {
                     Toggle("Ruhezeiten", isOn: $ruheAn)
@@ -102,6 +111,7 @@ struct EinstellungenAnsicht: View {
                 .onChange(of: ruheAn) { _, _ in ruheSpeichern() }
                 .onChange(of: ruheVon) { _, _ in ruheSpeichern() }
                 .onChange(of: ruheBis) { _, _ in ruheSpeichern() }
+                .such(suche, "Ruhezeiten Nacht nicht stören leise schlafen")
 
                 Section {
                     Picker("📶 Sparmodus", selection: $sparModus) {
@@ -112,6 +122,7 @@ struct EinstellungenAnsicht: View {
                 } footer: {
                     Text("Kleinere Vorschaubilder, Videos erst beim Antippen, kein Vorladen der Offline-Galerie, Helfer mit 30 statt 60 Bildern pro Sekunde – schont Akku und Datenvolumen.")
                 }
+                .such(suche, "Sparmodus Daten sparen Mobilfunk Akku unterwegs")
 
                 Section("iPhone") {
                     Picker("App-Symbol", selection: Binding(get: { UIApplication.shared.alternateIconName ?? "" }, set: { neu in
@@ -125,8 +136,10 @@ struct EinstellungenAnsicht: View {
                     Toggle("Live-Aktivität (Sperrbildschirm & Dynamic Island)", isOn: $live)
                         .onChange(of: live) { _, an in LiveAktivitaeten.an = an }
                 }
+                .such(suche, "iPhone App-Symbol Icon Face ID sperren Live-Aktivität Dynamic Island")
 
                 ModellAbschnitt()
+                    .such(suche, "Modell Sprachmodell KI Regie Chat")
 
                 Section("Studio") {
                     Button(studio.angehalten ? "Warteschlange fortsetzen" : "Warteschlange anhalten") {
@@ -134,13 +147,23 @@ struct EinstellungenAnsicht: View {
                     }
                     if let g = studio.stand.gpuName { LabeledContent("Grafikkarte", value: g) }
                 }
+                .such(suche, "Studio Warteschlange anhalten Grafikkarte")
+
+                Section("Hilfe") {
+                    NavigationLink { TutorialUebersicht() } label: { Label("Einführungen (jeder Workflow mit Testlauf)", systemImage: "graduationcap") }
+                    Button { neuZeigen = true } label: { Label("Was ist neu", systemImage: "sparkles") }
+                }
+                .such(suche, "Hilfe Einführung Tutorial Anleitung neu Neuigkeiten")
 
                 Section {
                     Button("Verbindung trennen", role: .destructive) { trennenFrage = true }
                 } footer: {
                     Text("NitraX \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""))")
                 }
+                .such(suche, "Verbindung trennen abmelden Version")
             }
+            .searchable(text: $suche, placement: .navigationBarDrawer(displayMode: .always), prompt: "Einstellungen durchsuchen")
+            .sheet(isPresented: $neuZeigen) { WasIstNeu() }
             .navigationTitle("Einstellungen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
@@ -155,5 +178,14 @@ struct EinstellungenAnsicht: View {
                 Button("Trennen", role: .destructive) { studio.trennen(); dismiss() }
             }
         }
+    }
+}
+
+
+extension View {
+    /// 🔎 Einstellungs-Suche: Abschnitt nur zeigen, wenn alle Suchwörter in seinen Stichwörtern vorkommen
+    @ViewBuilder func such(_ suche: String, _ worte: String) -> some View {
+        let q = suche.trimmingCharacters(in: .whitespaces)
+        if q.isEmpty || q.split(separator: " ").allSatisfy({ worte.localizedCaseInsensitiveContains(String($0)) }) { self }
     }
 }

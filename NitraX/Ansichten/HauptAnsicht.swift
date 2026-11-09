@@ -7,6 +7,7 @@ struct HauptAnsicht: View {
     @EnvironmentObject private var studio: Studio
     @EnvironmentObject private var navigation: Navigation
     @State private var vorladen = false
+    @State private var neuZeigen = false
 
     var body: some View {
         TabView(selection: $navigation.reiter) {
@@ -28,6 +29,8 @@ struct HauptAnsicht: View {
                 .tag(Navigation.Reiter.helfer)
         }
         .modifier(SeitenleisteAufIPad())
+        .sheet(isPresented: $neuZeigen, onDismiss: { WasIstNeu.gesehen() }) { WasIstNeu() }     // ✨ einmal je Version
+        .task { try? await Task.sleep(for: .seconds(1.5)); if WasIstNeu.faellig { neuZeigen = true } }
         .overlay(alignment: .bottom) { MiniSpieler().padding(.bottom, 56) }      // 🎵 läuft Musik: kleine Leiste
         .animation(.spring(duration: 0.35), value: Musikspieler.shared.aktuell?.id)
         .background {
@@ -101,6 +104,7 @@ struct StudioAnsicht: View {
                         .padding(.leading, 6).padding(.top, 2).padding(.bottom, 4)
                     BuehneKarte()
                     pcKarte
+                    WerkstattKarte()                               // 🛠 Hintergrundarbeit sichtbar
                     SiriTipView(intent: HelferGespraech(), isVisible: $siriTipp).siriTipViewStyle(.dark)
                     if !studio.stand.fremd.isEmpty { spielHinweis }
                     if !laufend.isEmpty || !wartend.isEmpty { warteschlange }

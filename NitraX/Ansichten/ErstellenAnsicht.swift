@@ -15,6 +15,19 @@ struct ErstellenAnsicht: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    NavigationLink { TutorialUebersicht() } label: {             // 🎓 Einführungen
+                        HStack(spacing: 12) {
+                            Text("🎓").font(.system(size: 26)).frame(width: 44, height: 44).background(Circle().fill(Farbe.akzent.opacity(0.16)))
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Einführungen").font(.subheadline.weight(.semibold))
+                                Text("Jeder Workflow Schritt für Schritt – mit echtem Testlauf zum Mitverfolgen").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                        }
+                        .karte()
+                    }
+                    .buttonStyle(.plain)
                     FotoStartKarte()                                         // 📷 aufnehmen, zuschneiden, Workflow wählen
                     VorlagenLeiste()
                     FavoritenVorlagen()                                      // ❤ eigene Lieblingsergebnisse als Vorlage
@@ -84,7 +97,31 @@ struct WorkflowFormular: View {
     @Environment(\.dismiss) private var dismiss
     let workflow: Workflow
     var vorbelegung: [String: JSONWert] = [:]
+    var tutorialStart = false                          // 🎓 gleich mit der Einführung beginnen
     @State private var werte: [String: JSONWert] = [:]
+    @State private var tutorial: TutorialDaten?
+    @State private var tutSchritt = 0
+    @State private var tutLaedt = false
+    @State private var tutLive: LiveZiel?
+    struct LiveZiel: Identifiable { let id = UUID(); let ids: [String] }
+
+    /// gerade erklärtes Feld (für Hervorheben + Hinscrollen)
+    private var tutFeld: String? {
+        guard let t = tutorial else { return nil }
+        if tutSchritt >= 1 && tutSchritt <= t.schritte.count { return t.schritte[tutSchritt - 1].feld }
+        return tutSchritt > t.schritte.count ? "nx-start" : nil
+    }
+
+    private func tutorialStarten() async {
+        guard let c = studio.client, !tutLaedt else { return }
+        tutLaedt = true
+        defer { tutLaedt = false }
+        do {
+            let t = try await TutorialDaten.laden(c, wf: workflow.id)
+            for (k, v) in t.test { werte[k] = v }                       // schnelle Test-Einstellungen
+            withAnimation(.snappy) { tutorial = t; tutSchritt = 0 }
+        } catch { fehler = "Einführung nicht verfügbar: \(error.localizedDescription)" }
+    }
     @State private var startet = false
     @State private var startZeit = Date()
     @State private var fehler: String?
@@ -92,16 +129,25 @@ struct WorkflowFormular: View {
     @State private var varianten = 1                    // 🎲 mehrere auf einmal (Runde 3, Nr. 5)
 
     var body: some View {
+        ScrollViewReader { blick in
         Form {
             Section {
                 Text(workflow.text).font(.footnote).foregroundStyle(.secondary)
+                if tutorial == nil {
+                    Button { Task { await tutorialStarten() } } label: {
+                        Label(tutLaedt ? "Einführung lädt …" : "🎓 Einführung mit Testlauf", systemImage: "graduationcap")
+                    }
+                    .font(.footnote)
+                }
             }
             ForEach(workflow.felder) { f in
                 Section {
                     FeldEditor(feld: f, workflow: workflow, wert: Binding(get: { werte[f.name] }, set: { werte[f.name] = $0 }), alle: werte)
+                        .listRowBackground(tutFeld == f.name ? Farbe.akzent.opacity(0.22) : nil)
                 } header: {
                     if f.art != "schalter" { Text(f.label + (f.pflicht ? " *" : "")) }
                 }
+                .id(f.name)
             }
             Section {
                 Stepper(value: $varianten, in: 1...4) {
@@ -134,9 +180,34 @@ struct WorkflowFormular: View {
                 .listRowBackground(Farbe.verlauf)
                 .foregroundStyle(.white)
                 .disabled(startet)
+                .overlay { if tutFeld == "nx-start" { RoundedRectangle(cornerRadius: 10).stroke(.white, lineWidth: 2).padding(-4) } }
                 if let fehler { Text(fehler).font(.footnote).foregroundStyle(Farbe.fehler) }
             }
+            .id("nx-start")
+            if tutorial != nil { Color.clear.frame(height: 260).listRowBackground(Color.clear) }    // Platz für die Einführung
         }
+        .onChange(of: tutSchritt) { _, _ in
+            if let f = tutFeld { withAnimation(.easeInOut(duration: 0.35)) { blick.scrollTo(f, anchor: .top) } }
+        }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let t = tutorial {
+                TutorialLeiste(t: t, schritt: $tutSchritt, einsetzen: { s in
+                    if let b = s.beispiel { werte[s.feld] = b; UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
+                }, beenden: { withAnimation { tutorial = nil } })
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .onChange(of: tutSchritt) { alt, neu in
+            // »Weiter« ohne Eingabe: leeres Feld bekommt das Beispiel (sonst klappt der Testlauf nicht)
+            guard let t = tutorial, neu > alt, alt >= 1, alt <= t.schritte.count else { return }
+            let s = t.schritte[alt - 1]
+            if (werte[s.feld]?.istLeer ?? true), let b = s.beispiel { werte[s.feld] = b }
+        }
+        .fullScreenCover(item: $tutLive) { z in
+            if let t = tutorial { TutorialLive(t: t, ids: z.ids) } else { EmptyView() }
+        }
+        .task { if tutorialStart && tutorial == nil { await tutorialStarten() } }
         .scrollContentBackground(.hidden)
         .nxHintergrund()
         .navigationTitle(workflow.name)
@@ -223,6 +294,13 @@ struct WorkflowFormular: View {
             var felder: [String: Any] = [:]
             for (k, v) in werte { felder[k] = v.alsAny }
             let r = try await c.post("/api/handy/start", ["wf": workflow.id, "felder": felder], zeit: 900)
+            if tutorial != nil {                                           // 🎓 Testlauf: live mitverfolgen statt wegspringen
+                let ids = (r["auftraege"]?.liste ?? []).compactMap(\.text)
+                TutorialUebersicht.erledigt(workflow.id)
+                await studio.aktualisieren()
+                tutLive = LiveZiel(ids: ids)
+                return
+            }
             if varianten > 1 {                                                  // 🎲 weitere Varianten, danach vergleichen
                 var ids = (r["auftraege"]?.liste ?? []).compactMap(\.text)
                 for _ in 1..<varianten {
