@@ -20,9 +20,16 @@ on:
         type: boolean
         default: true
 
+# Nur EIN Mac-Auftrag je Version (09.11.2026: GitHub hatte stundenlang keine freien Macs – vorher liefen Prüfen beim
+# Hochladen, Prüfen beim Start und TestFlight nacheinander, jeder wartete neu auf einen Mac). TestFlight kompiliert selbst.
+concurrency:
+  group: ios-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
   pruefen:
     name: Prüfen (ohne Signatur)
+    if: github.event_name == 'push' || !inputs.testflight
     runs-on: macos-26
     timeout-minutes: 40
     steps:
@@ -53,7 +60,6 @@ jobs:
 
   testflight:
     name: TestFlight
-    needs: pruefen
     if: github.event_name == 'workflow_dispatch' && inputs.testflight
     runs-on: macos-26
     timeout-minutes: 60
