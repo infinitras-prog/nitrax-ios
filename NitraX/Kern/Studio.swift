@@ -232,7 +232,11 @@ final class Studio: ObservableObject {
             widgetAuffrischen(s)
             LiveAktivitaeten.abgleichen(s, client: c)
             await LokaleAnrufe.abgleichen(c)                                   // 📞 geplante Anrufe als Klingel-Alarm
-            if !vorratGeprueft { vorratGeprueft = true; Task { await Stimmvorrat.auffuellen(c) } }   // 👋 Begrüßungen in ihrer Stimme
+            if !vorratGeprueft {
+                vorratGeprueft = true
+                Task { await Stimmvorrat.auffuellen(c) }                       // 👋 Begrüßungen in ihrer Stimme
+                Task { await Selbsttest.shared.nachUpdate(c, studio: self) }   // 🧪 einmal je neuer App-Version
+            }
             Task { await Fehlerbericht.shared.senden(c) }                       // 🧾 gesammelte Fehler an den PC (höchstens alle 2 min)
             if Postausgang.anzahl > 0 {                                         // 📮 gemerkte Aufträge starten
                 let n = await Postausgang.abarbeiten(c)
@@ -324,6 +328,29 @@ final class Studio: ObservableObject {
     func warteschlange(anhalten an: Bool) async {
         await aktion { try await $0.post(an ? "/api/queue/pause" : "/api/queue/resume") }
         angehalten = an
+    }
+
+    // MARK: ⏳ Warteschlange steuern (Runde 2, Nr. 7)
+
+    /// an Position `zu` schieben (0 = als Nächstes)
+    func stelle(_ a: Auftrag, zu: Int) async {
+        await aktion { try await $0.post("/api/jobs/\(a.id)/stelle", ["zu": zu]) }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    /// ⏸ zurückstellen (bleibt liegen, bis du es wieder einreihst) bzw. ▶ wieder einreihen (hinten an)
+    func zurueckstellen(_ a: Auftrag, an: Bool) async {
+        await aktion { try await $0.post("/api/jobs/\(a.id)/halten", ["an": an]) }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        meldung = an ? "⏸ »\(a.titel)« zurückgestellt" : "▶ »\(a.titel)« wieder eingereiht"
+    }
+
+    /// Wartende in der Reihenfolge, in der sie drankommen (zurückgestellte ans Ende)
+    var warteschlangeListe: [Auftrag] {
+        stand.auftraege.filter { $0.wartet }.sorted {
+            if $0.zurueckgestellt != $1.zurueckgestellt { return !$0.zurueckgestellt }
+            return ($0.reihe ?? $0.created) < ($1.reihe ?? $1.created)
+        }
     }
 
     private func aktion(_ f: (NXClient) async throws -> JSONWert) async {

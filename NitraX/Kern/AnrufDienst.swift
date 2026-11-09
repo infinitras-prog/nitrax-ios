@@ -41,6 +41,10 @@ final class AnrufDienst: NSObject, ObservableObject {
         return URL(string: basis.absoluteString + "/?k=" + k + "#helfer")
     }
 
+    /// ✓ Runde 2, Nr. 2: was mitten im Gespräch fertig wurde (Karte im Anrufbildschirm)
+    struct Gezeigt: Equatable { let id: String; let titel: String; let art: String; let bild: URL? }
+    @Published var gezeigt: Gezeigt?
+
     /// 🎨 Hintergrund hinter ihr im Videoanruf
     @Published var videoHintergrund = UserDefaults.standard.string(forKey: "video_hintergrund") ?? "nacht" {
         didSet { UserDefaults.standard.set(videoHintergrund, forKey: "video_hintergrund") }
@@ -233,6 +237,7 @@ extension AnrufDienst: CXProviderDelegate {
             self.pegel = 0
             self.welle = Array(repeating: 0, count: 48)
             self.helferSpricht = false
+            self.gezeigt = nil
             if self.video { self.video = false; self.augen.stoppen(); self.videoWeb = nil; VideoPiP.shared.aus() }
             self.aktiv = nil
             self.imGespraech = false
@@ -270,6 +275,15 @@ extension AnrufDienst: CXProviderDelegate {
             let g = AnrufGespraech(client: NXClient(v, zeitlimit: 60), begruessung: a.text)
             g.aufgelegt = { [weak self] in self?.auflegen() }
             g.untertitel = { [weak self] t, sie in self?.untertitel = t; self?.untertitelSie = sie }
+            g.fertigZeigen = { [weak self] z in
+                guard let self else { return }
+                self.gezeigt = z
+                Task { [weak self] in
+                    try? await Task.sleep(for: .seconds(20))
+                    if self?.gezeigt?.id == z.id { self?.gezeigt = nil }
+                }
+            }
+            g.imVideo = { [weak self] in self?.video ?? false }
             self.untertitel = ""
             g.gefuehl = { [weak self] name in
                 guard let self, self.video else { return }
@@ -341,6 +355,15 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private var protokoll: [String] = []
     /// 💬 Untertitel: (Text, spricht sie?)
     var untertitel: ((String, Bool) -> Void)?
+    /// ✓ Runde 2, Nr. 2: mitten im Gespräch Fertiges ansagen (und im Videoanruf zeigen)
+    var fertigZeigen: ((AnrufDienst.Gezeigt) -> Void)?
+    var imVideo: (() -> Bool)?
+    private var fertigSeit = 0.0
+    private var gemeldet: Set<String> = []
+    private var fertigWarte: [Auftrag] = []
+    private var meldet = false
+    private var nutzerSeit: Date?                       // spricht er gerade? (Satzbeginn bis erkannt)
+    private var gesagt = 0                              // wie oft er etwas gesagt hat (für die 📝 Gesprächsnotiz)
 
     /// 📋 Zeitleiste (nur Technik, keine Inhalte) – geht nach dem Anruf an den PC (data/begleiter/anrufprotokoll.log)
     func log(_ t: String) {
@@ -385,6 +408,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         ohr.satzBeginnt = { [weak self] in
             guard let self else { return }
             self.log("Satz beginnt (Pegel)")
+            self.nutzerSeit = Date()
             self.live.beginnen()
             self.mitgedacht = false
         }
@@ -399,6 +423,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             }
         }
         log("Anruf gestartet")
+        Task { [weak self] in await self?.fertigePruefen() }              // ✓ Zeitpunkt merken (ab jetzt Fertiges ansagen)
         // 🐕 Wächter: Mikro tot (Routenwechsel, Unterbrechung) -> sofort wieder an
         waechter = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -411,6 +436,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
                     let c = self.client
                     Task.detached { _ = try? await c.post("/api/anruf/vorbereiten", vor, zeit: 60) }
                 }
+                if self.sekunden % 5 == 0 { Task { await self.fertigePruefen() } }    // ✓ fertig geworden?
                 guard !self.ohr.laeuft else { return }
                 self.log("Wächter: Mikro lief nicht (phase \(self.ohr.phase)) – starte neu")
                 self.ohr.stoppen()
@@ -471,6 +497,11 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         live.abbrechen()
         log("Anruf beendet")
         let zeilen = protokoll, c = client
+        // 📝 Gesprächsnotiz (Runde 2, Nr. 1): der PC fasst das Telefonat zusammen -> Gesprächsverlauf + Mitteilung
+        if let chat, gesagt > 0 {
+            let dauer = Date().timeIntervalSince(beginn)
+            Task.detached { _ = try? await c.post("/api/handy/anruf_notiz", ["chat": chat, "dauer": dauer], zeit: 20) }
+        }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         Task.detached { _ = try? await c.post("/api/begleiter/anrufprotokoll", ["zeilen": zeilen, "version": version], zeit: 20) }
         Task { @MainActor in try? await Task.sleep(for: .seconds(3)); await Stimmvorrat.auffuellen(c) }
@@ -637,7 +668,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     }
 
     private func gehoert(_ wav: Data) async {
-        defer { ohr.weiter() }
+        defer { ohr.weiter(); nutzerSeit = nil }
         guard !aus else { return }
         let t0 = Date()
         var text = await live.beenden()
@@ -665,7 +696,67 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             aufgelegt?()
             return
         }
+        gesagt += 1
         await antworten(text)
+    }
+
+    // MARK: ✓ Fertiges mitten im Gespräch (Runde 2, Nr. 2)
+
+    /// alle 5 s: ist seit dem letzten Blick etwas fertig geworden? (kleine Anfrage, auch wenn die App im Hintergrund ist)
+    private func fertigePruefen() async {
+        guard !aus, let w = try? await client.get("/api/handy/fertig_seit?t=\(fertigSeit)", JSONWert.self) else { return }
+        let erstes = fertigSeit == 0
+        if let j = w["jetzt"]?.zahl { fertigSeit = j }
+        guard !erstes else { return }                       // erster Blick: nur den Zeitpunkt merken
+        let enc = JSONEncoder(), dec = JSONDecoder()
+        for roh in w["fertig"]?.liste ?? [] {
+            guard let d = try? enc.encode(roh), let a = try? dec.decode(Auftrag.self, from: d), !gemeldet.contains(a.id) else { continue }
+            gemeldet.insert(a.id)
+            fertigWarte.append(a)
+        }
+        if !fertigWarte.isEmpty { await fertigMelden() }
+    }
+
+    /// warten, bis gerade niemand spricht (höchstens 90 s), dann ansagen – sie formuliert es selbst, passend zum Gespräch
+    private func fertigMelden() async {
+        guard !meldet else { return }
+        meldet = true
+        defer { meldet = false }
+        let start = Date()
+        while !aus, Date().timeIntervalSince(start) < 90 {
+            let spricht = nutzerSeit.map { Date().timeIntervalSince($0) < 8 } ?? false
+            if !redet && !denkt && !spricht && warteschlange.isEmpty { break }
+            try? await Task.sleep(for: .milliseconds(400))
+        }
+        guard !aus, !fertigWarte.isEmpty else { return }
+        let liste = fertigWarte
+        fertigWarte = []
+        let a = liste[0]
+        log("Fertig gemeldet: \(liste.count) Auftrag/Aufträge")
+        fertigZeigen?(AnrufDienst.Gezeigt(id: a.id, titel: a.titel, art: a.artName, bild: (a.bilderAnzahl > 0 || a.hatVideo) ? client.url("/api/begleiter/ergebnis/\(a.id)") : nil))
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        var bilder: [String] = []
+        let video = imVideo?() ?? false
+        if video, a.bilderAnzahl > 0 || a.hatVideo, let jpeg = await ergebnisBild(a.id),
+           let r = try? await client.hochladen("/api/chat/upload", daten: jpeg, dateiname: "fertig.jpg", typ: "image/jpeg"), let n = r["name"]?.text {
+            bilder = [n]
+        }
+        let was = liste.map { "»\($0.titel)« (\($0.artName))" }.joined(separator: ", ")
+        let hinweis = "(Hinweis vom Studio, nicht vorlesen: Gerade ist fertig geworden: \(was)."
+            + (bilder.isEmpty ? " Er sieht es als Karte auf seinem Bildschirm." : " Du zeigst es ihm gerade im Videoanruf – angehängt, sag ehrlich und kurz, wie du es findest.")
+            + " Sag es ihm kurz und natürlich mitten im Gespräch, 1-2 Sätze, und mach dann mit dem Thema von eben weiter.)"
+        await antworten(hinweis, extraBilder: bilder)
+    }
+
+    private func ergebnisBild(_ id: String) async -> Data? {
+        guard let url = client.url("/api/begleiter/ergebnis/\(id)") else { return nil }
+        var r = URLRequest(url: url)
+        r.timeoutInterval = 15
+        for (k, v) in client.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
+        guard let (d, resp) = try? await URLSession.shared.data(for: r), (resp as? HTTPURLResponse)?.statusCode == 200, let b = UIImage(data: d) else { return nil }
+        let s = min(1, 1024 / max(b.size.width, b.size.height))
+        let g = CGSize(width: b.size.width * s, height: b.size.height * s)
+        return UIGraphicsImageRenderer(size: g).image { _ in b.draw(in: CGRect(origin: .zero, size: g)) }.jpegData(compressionQuality: 0.85)
     }
 
     /// 🖼 Videoanruf »Zeigen«: ein Ergebnis aus der Bibliothek – sie schaut es sich an und sagt ehrlich, wie sie es findet

@@ -15,6 +15,7 @@ struct HelferVerlauf: View {
         let titel: String
         let geaendert: Date
         let anzahl: Int
+        var notiz = ""                                  // 📝 Gesprächsnotiz (Telefonate)
     }
 
     var body: some View {
@@ -37,7 +38,9 @@ struct HelferVerlauf: View {
                                     if c.id == aktiv { Text("aktuell").font(.caption2.bold()).padding(.horizontal, 6).padding(.vertical, 2)
                                         .background(Farbe.akzent.opacity(0.25), in: Capsule()) }
                                 }
-                                Text("\(c.anzahl) Nachrichten").font(.caption).foregroundStyle(.secondary)
+                                if c.titel.hasPrefix("📞") { Text(c.titel).font(.footnote.weight(.medium)).lineLimit(1) }
+                                if !c.notiz.isEmpty { Text("📝 " + c.notiz).font(.caption).foregroundStyle(.secondary).lineLimit(2) }
+                                else { Text("\(c.anzahl) Nachrichten").font(.caption).foregroundStyle(.secondary) }
                             }
                         }
                     }
@@ -63,7 +66,8 @@ struct HelferVerlauf: View {
             if titel.hasPrefix("🧪") { return nil }                       // Testgespräche nicht zeigen
             let n = Int(x["n"]?.zahl ?? 0)
             guard n > 0 else { return nil }
-            return Eintrag(id: id, titel: titel, geaendert: Date(timeIntervalSince1970: x["geaendert"]?.zahl ?? 0), anzahl: n)
+            return Eintrag(id: id, titel: titel, geaendert: Date(timeIntervalSince1970: x["geaendert"]?.zahl ?? 0), anzahl: n,
+                           notiz: x["notiz"]?.text ?? "")
         }
         .sorted { $0.geaendert > $1.geaendert }
     }
@@ -86,12 +90,24 @@ private struct VerlaufDetail: View {
     let aktiv: Bool
     let weiter: () -> Void
     @State private var zeilen: [Zeile] = []
+    @State private var notiz: (text: String, punkte: [String])?
 
     struct Zeile: Identifiable { let id: Int; let ich: Bool; let text: String }
 
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 10) {
+                if let n = notiz {
+                    // 📝 Gesprächsnotiz nach dem Telefonat
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Gesprächsnotiz", systemImage: "note.text").font(.subheadline.weight(.semibold)).foregroundStyle(Farbe.akzent)
+                        Text(n.text).font(.callout)
+                        ForEach(n.punkte, id: \.self) { p in Text("• " + p).font(.callout).foregroundStyle(.secondary) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .karte()
+                    .padding(.bottom, 6)
+                }
                 ForEach(zeilen) { z in
                     HStack {
                         if z.ich { Spacer(minLength: 40) }
@@ -120,6 +136,9 @@ private struct VerlaufDetail: View {
         guard let c = studio.client, let d = try? await c.roh("/api/chats/\(eintrag.id)"),
               let w = try? JSONDecoder().decode(JSONWert.self, from: d) else { return }
         var i = 0
+        if let n = w["notiz"], let t = n["text"]?.text, !t.isEmpty {
+            notiz = (t, (n["punkte"]?.liste ?? []).compactMap(\.text))
+        }
         zeilen = (w["nachrichten"]?.liste ?? []).compactMap { n in
             let rolle = n["rolle"]?.text ?? ""
             guard rolle == "user" || rolle == "assistant" else { return nil }

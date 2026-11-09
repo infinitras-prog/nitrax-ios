@@ -226,7 +226,7 @@ struct FeldEditor: View {
             }
         }
         .fullScreenCover(isPresented: $kamera) {
-            KameraAufnahme { d in Task { await bildHoch(d) } }.ignoresSafeArea()
+            KameraMitZuschnitt { d in Task { await bildHoch(d) } }                  // ✂ mit Zuschneiden (Runde 2)
         }
         .sheet(isPresented: $ergebnisse) {
             ErgebnisWahl { id, k in dazu(.objekt(["quelle": .text("job"), "id": .text(id), "k": .zahl(Double(k))])) }

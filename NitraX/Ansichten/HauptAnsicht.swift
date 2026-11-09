@@ -140,6 +140,11 @@ struct StudioAnsicht: View {
             }
             Spacer()
             if !studio.erreichbar {
+                // 🩺 warum? (Netz, Adresse, Schlüssel, Firewall …)
+                NavigationLink { VerbindungsDoktor() } label: {
+                    Image(systemName: "stethoscope").font(.headline).padding(10).background(Farbe.karte, in: Circle())
+                }
+                .buttonStyle(.plain)
                 // 🔄 sofort neu suchen (WLAN-Adresse und Tailscale)
                 Button {
                     UIImpactFeedbackGenerator(style: .light).impactOccurred()

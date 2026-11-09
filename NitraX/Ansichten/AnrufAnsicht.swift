@@ -124,6 +124,28 @@ struct AnrufAnsicht: View {
                 .padding(.top, 10).padding(.bottom, 50)
             }
         }
+        .overlay(alignment: .top) {
+            // ✓ Mitten im Gespräch fertig geworden: sie sagt es dir und zeigt es hier
+            if let g = dienst.gezeigt {
+                Button { withAnimation(.spring(duration: 0.35)) { dienst.gezeigt = nil } } label: {
+                    HStack(spacing: 12) {
+                        NXBild(url: g.bild).frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("✓ \(g.art) fertig").font(.caption.weight(.bold)).foregroundStyle(Farbe.gut)
+                            Text(g.titel).font(.subheadline.weight(.semibold)).foregroundStyle(.white).lineLimit(2)
+                        }
+                        Spacer(minLength: 0)
+                        Image(systemName: "xmark").font(.caption).foregroundStyle(.secondary)
+                    }
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding(.horizontal, 16).padding(.top, dienst.video ? 180 : 60)
+                }
+                .buttonStyle(.plain)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.4), value: dienst.gezeigt)
     }
 
     private func knopf(_ symbol: String, _ titel: String, an: Bool, _ tun: @escaping () -> Void) -> some View {

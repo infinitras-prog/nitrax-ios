@@ -30,11 +30,17 @@ struct Auftrag: Decodable, Identifiable, Hashable {
     var realismus = ""
     var vorRealismus = false
     var lob = ""                      // gut/schlecht (👍/👎)
+    var stichworte = ""               // 🔎 Bildinhalt in Stichwörtern (PC beschreibt im Leerlauf) - für die Suche
+    var vorlageWf: String?            // 🧬 Workflow + Eingaben, mit denen er vom Handy gestartet wurde (»Ähnliches erstellen«)
+    var vorlageFelder: [String: JSONWert] = [:]
+    var zurueckgestellt = false       // ⏸ vom Handy zurückgestellt
+    var reihe: Double?                // Platz in der Warteschlange (kleiner = früher)
 
     enum K: String, CodingKey {
         case id, kind, status, progress, stage, eta, elapsed, original, image, bilder, video, song_input, created, started, finished
         case error, fehler_klar, clips, probe_halt, total_seconds, fav
         case again, maximal, vor_maximal, realismus, vor_realismus, lob
+        case ki_stichworte, handy_vorlage, halt_hand, order
     }
 
     init(from decoder: Decoder) throws {
@@ -69,6 +75,21 @@ struct Auftrag: Decodable, Identifiable, Hashable {
         realismus = w(JSONWert.self, .realismus)?["status"]?.text ?? ""
         vorRealismus = !(w(JSONWert.self, .vor_realismus)?.istLeer ?? true)
         lob = w(String.self, .lob) ?? ""
+        stichworte = w(String.self, .ki_stichworte) ?? ""
+        if let v = w(JSONWert.self, .handy_vorlage), let wf = v["wf"]?.text, !wf.isEmpty {
+            vorlageWf = wf
+            vorlageFelder = v["felder"]?.objekt ?? [:]
+        }
+        zurueckgestellt = w(JSONWert.self, .halt_hand)?.wahr ?? false
+        reihe = w(Double.self, .order)
+    }
+
+    /// passt zur Suche (Titel, Art, Bildinhalt) - jedes Wort muss irgendwo vorkommen
+    func passt(zu suche: String) -> Bool {
+        let woerter = suche.lowercased().split(whereSeparator: { $0 == " " || $0 == "," }).map(String.init)
+        guard !woerter.isEmpty else { return true }
+        let heu = (titel + " " + artName + " " + original + " " + stichworte).lowercased()
+        return woerter.allSatisfy { heu.contains($0) }
     }
 
     var laeuft: Bool { status == "läuft" }

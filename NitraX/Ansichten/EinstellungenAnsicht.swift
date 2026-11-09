@@ -27,6 +27,16 @@ struct EinstellungenAnsicht: View {
                         }
                     }
                     Button { scannen = true } label: { Label("Weitere Adresse scannen (z. B. Tailscale)", systemImage: "qrcode.viewfinder") }
+                    NavigationLink { VerbindungsDoktor() } label: { Label("Verbindung prüfen", systemImage: "stethoscope") }
+                    NavigationLink { SelbsttestAnsicht() } label: {
+                        HStack {
+                            Label("Selbsttest", systemImage: "checklist")
+                            Spacer()
+                            let t = Selbsttest.shared
+                            if t.probleme > 0 { Text("\(t.probleme) Problem\(t.probleme == 1 ? "" : "e")").font(.caption).foregroundStyle(Farbe.fehler) }
+                            else if !t.punkte.isEmpty { Text("in Ordnung").font(.caption).foregroundStyle(Farbe.gut) }
+                        }
+                    }
                 } header: { Text("PC-Verbindung") } footer: {
                     Text("Die App nimmt automatisch die erste erreichbare Adresse – zu Hause das WLAN, unterwegs Tailscale.")
                 }

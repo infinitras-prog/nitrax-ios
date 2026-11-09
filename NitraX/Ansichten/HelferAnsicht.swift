@@ -23,12 +23,14 @@ struct HelferAnsicht: View {
     @State private var tagebuch = false
     @State private var verlauf = false
     @State private var routinenZeigen = false
+    @State private var aussehen = false
+    @AppStorage("helfer_hintergrund") private var hintergrund = ""      // 🎨 eigener Hintergrund hinter ihr
     @ObservedObject private var anruf = AnrufDienst.shared
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
         ZStack {
-            Hintergrund()
+            if hintergrund.isEmpty { Hintergrund() } else { VideoHintergrund.ansicht(hintergrund).ignoresSafeArea().transition(.opacity) }
             if let url = adresse, let c = studio.client {
                 HelferWeb(url: url, client: c, bruecke: bruecke, augen: augen).id(neuLaden).ignoresSafeArea(edges: .bottom)
             } else {
@@ -83,6 +85,7 @@ struct HelferAnsicht: View {
                     Button { verlauf = true } label: { Label("Gesprächsverlauf", systemImage: "clock.arrow.circlepath") }
                     Button { routinenZeigen = true } label: { Label("Routinen", systemImage: "alarm") }
                     Button { tagebuch = true } label: { Label("Unser Tagebuch", systemImage: "book.closed") }
+                    Button { aussehen = true } label: { Label("Aussehen (Outfit & Hintergrund)", systemImage: "tshirt") }.disabled(!bruecke.bereit)
                     Button { einstellungen = true } label: { Label("Helfer anpassen", systemImage: "slider.horizontal.3") }
                     Button { neuLaden = UUID() } label: { Label("Neu laden", systemImage: "arrow.clockwise") }
                 } label: {
@@ -123,6 +126,8 @@ struct HelferAnsicht: View {
         .sheet(isPresented: $tagebuch) { HelferTagebuch() }
         .sheet(isPresented: $verlauf) { HelferVerlauf { neuLaden = UUID() } }
         .sheet(isPresented: $routinenZeigen) { RoutinenAnsicht() }
+        .sheet(isPresented: $aussehen) { HelferAussehen(bruecke: bruecke).presentationDetents([.medium, .large]) }
+        .onChange(of: hintergrund) { _, h in bruecke.hintergrund(!h.isEmpty) }
         .sheet(isPresented: $einstellungen) {
             HelferEinstellungen { neuLaden = UUID() }
         }
@@ -150,7 +155,7 @@ struct HelferAnsicht: View {
         }
         .onChange(of: freihand) { _, an in freihandSchalten(an) }
         .onChange(of: bruecke.bereit) { _, b in
-            if b { freihandSchalten(freihand) }
+            if b { freihandSchalten(freihand); bruecke.hintergrund(!hintergrund.isEmpty) }
             if b { Task { try? await Task.sleep(for: .seconds(2.5)); HelferPortrait.holen(aus: bruecke.web) } }   // 🖼 für den Anrufkreis
             if b, let c = studio.client { Task { try? await Task.sleep(for: .seconds(6)); await Stimmvorrat.auffuellen(c) } }   // 👋 Begrüßungen vorrätig
         }
@@ -266,6 +271,32 @@ final class HelferBruecke: ObservableObject {
         return r as? [String: Any]
     }
 
+    // MARK: 👗 Aussehen (Runde 2, Nr. 13)
+
+    func garderobe() async -> [String: Any]? {
+        guard let w = web, bereit else { return nil }
+        let r = try? await w.callAsyncJavaScript("if (!window.nxHandyHelfer || !window.nxHandyHelfer.garderobe) return null; return await window.nxHandyHelfer.garderobe()",
+                                                 arguments: [:], contentWorld: .page)
+        return r as? [String: Any]
+    }
+
+    func anziehen(_ id: String) async -> Bool {
+        guard let w = web, bereit else { return false }
+        let r = try? await w.callAsyncJavaScript("return await window.nxHandyHelfer.anziehen(id)", arguments: ["id": id], contentWorld: .page)
+        return r as? Bool ?? false
+    }
+
+    func zurueck() async -> Bool {
+        guard let w = web, bereit else { return false }
+        let r = try? await w.callAsyncJavaScript("return await window.nxHandyHelfer.zurueck()", arguments: [:], contentWorld: .page)
+        return r as? Bool ?? false
+    }
+
+    /// eigener Hintergrund: die Seite wird durchsichtig, dahinter malt SwiftUI
+    func hintergrund(_ an: Bool) {
+        js("document.documentElement.classList.toggle('nx-hg', \(an ? "true" : "false"))")
+    }
+
     func meldung(_ m: Int) {
         wennBereit { [weak self] in self?.js("location.hash = '#helfer&m=\(m)'") }
     }
@@ -293,7 +324,8 @@ struct HelferWeb: UIViewRepresentable {
       st.textContent = 'html, body { background: #07080f !important } '
         + 'body > *:not(.nxhh):not(.nxhh-toast) { visibility: hidden !important } '
         + '#nxhh-start, .nxhh [data-a="push"], .nxhh [data-a="zu"] { display: none !important } '
-        + '.nxhh-kopf { padding-right: 104px !important }';
+        + '.nxhh-kopf { padding-right: 104px !important } '
+        + 'html.nx-hg, html.nx-hg body, html.nx-hg .nxhh { background: transparent !important }';
       (document.head || document.documentElement).appendChild(st);
       function melden(was) { try { window.webkit.messageHandlers.nxHelfer.postMessage(was) } catch (e) {} }
       function binden() {

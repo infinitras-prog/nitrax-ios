@@ -68,7 +68,7 @@ struct BibliothekAnsicht: View {
         let q = suche.trimmingCharacters(in: .whitespaces).lowercased()
         return studio.stand.auftraege
             .filter { $0.fertig && passt($0) }
-            .filter { q.isEmpty || $0.titel.lowercased().contains(q) || $0.artName.lowercased().contains(q) }
+            .filter { q.isEmpty || $0.passt(zu: q) }                // 🔎 auch Bildinhalte (Stichwörter vom PC)
             .sorted { altZuerst ? zeit($0) < zeit($1) : zeit($0) > zeit($1) }
     }
 
@@ -175,7 +175,14 @@ struct BibliothekAnsicht: View {
 
     private var kopfzeile: some View {
         HStack {
-            Text("\(eintraege.count) \(eintraege.count == 1 ? "Ergebnis" : "Ergebnisse")").font(.subheadline).foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(eintraege.count) \(eintraege.count == 1 ? "Ergebnis" : "Ergebnisse")").font(.subheadline).foregroundStyle(.secondary)
+                if !suche.trimmingCharacters(in: .whitespaces).isEmpty {
+                    let alle = studio.stand.auftraege.filter { $0.fertig && ($0.bilderAnzahl > 0 || $0.hatVideo) }
+                    Text("🔎 sucht auch im Bildinhalt · \(alle.filter { !$0.stichworte.isEmpty }.count) von \(alle.count) beschrieben")
+                        .font(.caption2).foregroundStyle(.tertiary)
+                }
+            }
             Spacer()
             Menu {
                 Picker("Sortierung", selection: $altZuerst) {

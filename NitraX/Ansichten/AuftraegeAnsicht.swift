@@ -26,7 +26,7 @@ struct AuftraegeAnsicht: View {
                 case .audio: return a.istAudio || ["x-stimme", "x-sound", "x-sfx"].contains(a.kind)
                 }
             }
-            .filter { q.isEmpty || $0.titel.lowercased().contains(q) || $0.artName.lowercased().contains(q) }
+            .filter { q.isEmpty || $0.passt(zu: q) }
             .sorted { $0.created > $1.created }
     }
 
@@ -44,11 +44,33 @@ struct AuftraegeAnsicht: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
+                // ⏳ Warteschlange ordnen, zurückstellen, vorziehen
+                let wartend = studio.stand.auftraege.filter { $0.wartet }
+                if !wartend.isEmpty && (filter == .alle || filter == .laeuft) && suche.isEmpty {
+                    NavigationLink { WarteschlangeAnsicht() } label: {
+                        HStack {
+                            Label("Warteschlange", systemImage: "list.number").font(.subheadline.weight(.semibold))
+                            Spacer()
+                            Text("\(wartend.count) warte\(wartend.count == 1 ? "t" : "n")").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                    .listRowBackground(Farbe.karte)
+                }
                 if liste.isEmpty {
-                    ContentUnavailableView(studio.erreichbar ? "Keine Aufträge" : "PC nicht erreichbar",
-                                           systemImage: studio.erreichbar ? "tray" : "wifi.exclamationmark",
-                                           description: Text(studio.erreichbar ? "Unter »Erstellen« legst du los." : "Starte NitraX AI Studio am PC."))
+                    if studio.erreichbar {
+                        ContentUnavailableView("Keine Aufträge", systemImage: "tray", description: Text("Unter »Erstellen« legst du los."))
+                            .listRowBackground(Color.clear)
+                    } else {
+                        ContentUnavailableView {
+                            Label("PC nicht erreichbar", systemImage: "wifi.exclamationmark")
+                        } description: {
+                            Text("Starte NitraX AI Studio am PC.")
+                        } actions: {
+                            NavigationLink { VerbindungsDoktor() } label: { Label("Verbindung prüfen", systemImage: "stethoscope") }
+                                .buttonStyle(.borderedProminent)
+                        }
                         .listRowBackground(Color.clear)
+                    }
                 }
                 ForEach(liste.prefix(200)) { a in
                     NavigationLink(value: a) { AuftragZeile(a: a) }
@@ -263,6 +285,23 @@ struct AuftragDetail: View {
                 }
                 .buttonStyle(.borderedProminent).controlSize(.large)
             }
+            if a.wartet && !a.probeHalt {                                  // ⏳ Warteschlange
+                HStack(spacing: 10) {
+                    if a.zurueckgestellt {
+                        Button { Task { await studio.zurueckstellen(a, an: false) } } label: {
+                            Label("Wieder einreihen", systemImage: "play.fill").frame(maxWidth: .infinity)
+                        }
+                    } else {
+                        Button { Task { await studio.stelle(a, zu: 0) } } label: {
+                            Label("Als Nächstes", systemImage: "arrow.up.to.line").frame(maxWidth: .infinity)
+                        }
+                        Button { Task { await studio.zurueckstellen(a, an: true) } } label: {
+                            Label("Zurückstellen", systemImage: "pause.fill").frame(maxWidth: .infinity)
+                        }
+                    }
+                }
+                .buttonStyle(.bordered).controlSize(.large)
+            }
             if a.offen {
                 Button(role: .destructive) { abbrechenFrage = true } label: {
                     Label("Abbrechen", systemImage: "xmark").frame(maxWidth: .infinity)
@@ -299,10 +338,28 @@ struct AuftragDetail: View {
 
     private func wf(_ id: String) -> Workflow? { studio.workflows?.workflows.first { $0.id == id } }
 
+    /// 🧬 »Ähnliches erstellen«: dasselbe Formular mit denselben Eingaben zum Abwandeln. Vom Handy gestartet -> die gemerkten
+    /// Eingaben; am PC gestartet -> wenigstens Beschreibung (+ Startbild) übernehmen.
+    private var aehnlich: (Workflow, [String: JSONWert])? {
+        if let id = a.vorlageWf, let w = wf(id), !a.vorlageFelder.isEmpty {
+            let namen = Set(w.felder.map(\.name))
+            return (w, a.vorlageFelder.filter { namen.contains($0.key) })
+        }
+        let text = a.original.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count > 3, a.titel == text else { return nil }               // nur echte Beschreibungen, keine Dateinamen
+        if a.bilderAnzahl > 0, !a.hatVideo, let w = wf("x-img") { return (w, ["prompt": .text(text)]) }
+        if a.hatVideo, let w = wf("i2v"), let bild = a.image, !bild.isEmpty {
+            return (w, ["idee": .text(text), "bild": .objekt(["quelle": .text("upload"), "name": .text(bild)])])
+        }
+        if a.hatVideo, let w = wf("x-t2v") { return (w, ["idee": .text(text)]) }
+        return nil
+    }
+
     @ViewBuilder private var weiterKnoepfe: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Weitermachen").font(.headline)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 8)], spacing: 8) {
+                if let ae = aehnlich { link("🧬 Ähnliches erstellen", ae.0, ae.1) }
                 if a.wiederholbar { knopf("🎲 Neue Variante") { await starten(["wf": "_variante", "felder": ["id": a.id]], "Neue Variante läuft") } }
                 if a.bilderAnzahl > 0 {
                     knopf("⤢ 2× größer") { await starten(["wf": "_hoch", "felder": ["id": a.id + ":0", "ziel": "2x"]], "Wird vergrößert") }

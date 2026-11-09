@@ -15,6 +15,7 @@ struct ErstellenAnsicht: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
+                    FotoStartKarte()                                         // 📷 aufnehmen, zuschneiden, Workflow wählen
                     VorlagenLeiste()
                     FavoritenVorlagen()                                      // ❤ eigene Lieblingsergebnisse als Vorlage
                     Picker("Kategorie", selection: $kategorie) {
@@ -102,6 +103,7 @@ struct WorkflowFormular: View {
                 }
             }
             Section {
+                SchaetzungZeile(wf: workflow.id, laenge: ["laenge", "sekunden", "dauer"].lazy.compactMap { werte[$0]?.zahl }.first)   // ⏱
                 Button {
                     Task { await starten() }
                 } label: {
