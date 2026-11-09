@@ -74,6 +74,17 @@ struct AnrufAnsicht: View {
                 AnrufWelle(werte: dienst.welle, aktiv: !dienst.stumm)
                     .frame(height: 90)
                     .padding(.horizontal, 30)
+                if !dienst.untertitel.isEmpty {
+                    // 💬 Untertitel: was du sagst (live) bzw. was sie gerade sagt
+                    Text(dienst.untertitel)
+                        .font(.callout.weight(dienst.untertitelSie ? .regular : .semibold))
+                        .foregroundStyle(dienst.untertitelSie ? Color.white : Color(red: 0.55, green: 0.9, blue: 0.97))
+                        .multilineTextAlignment(.center).lineLimit(3)
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .padding(.horizontal, 24)
+                        .animation(.easeOut(duration: 0.15), value: dienst.untertitel)
+                }
                 Text(dienst.stumm ? "Stumm" : dienst.helferSpricht ? "\(dienst.anrufer) spricht …" : "Ich höre zu …")
                     .font(.footnote).foregroundStyle(.secondary)
                     .animation(.easeInOut, value: dienst.helferSpricht)

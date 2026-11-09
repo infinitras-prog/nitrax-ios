@@ -21,6 +21,12 @@ final class Dauergespraech: ObservableObject {
     let motor = AVAudioEngine()
     /// stumm geschaltet: Mikrofon wird ignoriert, die Engine (und damit die Stimme) läuft weiter
     var taub = false
+    /// 🗣 jeder Mikrofon-Puffer (Audio-Faden) – für die Live-Erkennung auf dem iPhone
+    nonisolated(unsafe) var tonSenke: ((AVAudioPCMBuffer) -> Void)?
+    /// Satz fängt an (Pegel über der Schwelle)
+    var satzBeginnt: (() -> Void)?
+    /// läuft das Mikrofon wirklich? (für den Wächter im Telefonat)
+    var laeuft: Bool { phase != .aus && motor.isRunning }
     private var sitzungMerk = true
     private var beobachter: NSObjectProtocol?
     private var konverter: AVAudioConverter?
@@ -48,6 +54,7 @@ final class Dauergespraech: ObservableObject {
         let k = konverter, z = ziel
         ein.removeTap(onBus: 0)
         ein.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self] buf, _ in
+            self?.tonSenke?(buf)
             let roh = Self.umwandeln(buf, k, z)
             let db = Self.dbfs(buf)
             Task { @MainActor in self?.verarbeiten(roh, db) }
@@ -71,7 +78,14 @@ final class Dauergespraech: ObservableObject {
         phase = .aus
         puffer = Data(); vorlauf = []
         sprichtSeit = nil; stilleSeit = nil; satzStart = nil
-        try? starten(sitzung: s)
+        // während eines Routenwechsels liefert iOS kurz kein Format -> ein paar Mal versuchen statt stumm zu bleiben
+        Task { @MainActor [weak self] in
+            for _ in 0..<8 {
+                guard let self, self.phase == .aus else { return }
+                if (try? self.starten(sitzung: s)) != nil { return }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
     }
 
     func stoppen() {
@@ -102,6 +116,7 @@ final class Dauergespraech: ObservableObject {
                 if jetzt.timeIntervalSince(sprichtSeit!) > (helferRedet ? 0.35 : 0.12) {
                     if helferRedet { insWortGefallen?(); unterbrochen = true }
                     phase = .hoert
+                    satzBeginnt?()
                     puffer = vorlauf.reduce(Data(), +)
                     satzStart = jetzt
                     stilleSeit = nil

@@ -20,6 +20,9 @@ final class AnrufDienst: NSObject, ObservableObject {
     @Published private(set) var pegel: Float = 0
     @Published private(set) var welle: [Float] = Array(repeating: 0, count: 48)
     @Published private(set) var helferSpricht = false
+    /// 💬 Untertitel im Anrufbildschirm
+    @Published private(set) var untertitel = ""
+    @Published private(set) var untertitelSie = false
     private var anzeigeTakt: Timer?
     /// 📹 Videoanruf: Helfer als Live-Figur, du als kleines Bild (Frontkamera); sie sieht dich bei Seh-Fragen
     @Published private(set) var video = false
@@ -117,6 +120,7 @@ final class AnrufDienst: NSObject, ObservableObject {
 
     /// 📞 Du rufst den Helfer an (wie ein normaler ausgehender Anruf; video = gleich als Videoanruf)
     func anrufen(video: Bool = false) {
+        if aktiv != nil && !imGespraech { aktiv = nil }                 // hängengebliebener alter Anruf
         guard aktiv == nil, !imGespraech else { return }
         let name = Gemeinsam.defaults.string(forKey: "helfer_name") ?? "Dein Helfer"
         let uuid = UUID()
@@ -171,7 +175,7 @@ extension AnrufDienst: PKPushRegistryDelegate {
 
 extension AnrufDienst: CXProviderDelegate {
     nonisolated func providerDidReset(_ provider: CXProvider) {
-        Task { @MainActor in self.gespraech?.beenden(); self.gespraech = nil; self.imGespraech = false }
+        Task { @MainActor in self.gespraech?.beenden(); self.gespraech = nil; self.imGespraech = false; self.aktiv = nil; self.seit = nil }
     }
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
@@ -220,9 +224,12 @@ extension AnrufDienst: CXProviderDelegate {
     /// Erst jetzt gehört uns der Ton - Gespräch starten
     nonisolated func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         Task { @MainActor in
-            guard let a = self.aktiv, self.gespraech == nil, let v = Verbindung.laden() else { return }
+            guard let a = self.aktiv, let v = Verbindung.laden() else { return }
+            if let alt = self.gespraech { alt.beenden(); self.gespraech = nil }          // nie ein altes Gespräch weiterlaufen lassen
             let g = AnrufGespraech(client: NXClient(v, zeitlimit: 60), begruessung: a.text)
             g.aufgelegt = { [weak self] in self?.auflegen() }
+            g.untertitel = { [weak self] t, sie in self?.untertitel = t; self?.untertitelSie = sie }
+            self.untertitel = ""
             g.gefuehl = { [weak self] name in
                 guard let self, self.video else { return }
                 self.videoWeb?.evaluateJavaScript("window.nxVideo && window.nxVideo.gefuehl('\(name)')", completionHandler: nil)
@@ -260,7 +267,7 @@ extension AnrufDienst: CXProviderDelegate {
     }
 
     nonisolated func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
-        Task { @MainActor in self.gespraech?.beenden() }
+        Task { @MainActor in self.gespraech?.beenden(); self.gespraech = nil }
     }
 }
 
@@ -284,6 +291,18 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private var fuellTon: Data?                          // »Mhm, Moment.« in IHRER Stimme (beim Abheben geholt)
     private var stromGeht = true
     private var stromFehler = 0
+    private let live = LiveErkennung()                 // 🗣 Erkennung auf dem iPhone, schon während du sprichst
+    private var waechter: Timer?
+    private let beginn = Date()
+    private var protokoll: [String] = []
+    /// 💬 Untertitel: (Text, spricht sie?)
+    var untertitel: ((String, Bool) -> Void)?
+
+    /// 📋 Zeitleiste (nur Technik, keine Inhalte) – geht nach dem Anruf an den PC (data/begleiter/anrufprotokoll.log)
+    func log(_ t: String) {
+        protokoll.append(String(format: "%6.2f s  ", Date().timeIntervalSince(beginn)) + t)
+        if protokoll.count > 400 { protokoll.removeFirst() }
+    }
     var eingangPegel: Float { ohr.pegel }
     var gefuehl: ((String) -> Void)?
     weak var augen: HelferAugen?
@@ -312,7 +331,37 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         ohr.satzFertig = { [weak self] wav in Task { await self?.gehoert(wav) } }
         ohr.insWortGefallen = { [weak self] in self?.stillSein() }
         ohr.stilleEnde = 0.6                                     // ⚡ Satzende schneller erkennen
+        let l = live
+        ohr.tonSenke = { b in l.fuettern(b) }
+        ohr.satzBeginnt = { [weak self] in
+            guard let self else { return }
+            self.log("Satz beginnt (Pegel)")
+            self.live.beginnen()
+            self.mitgedacht = false
+        }
+        live.teil = { [weak self] t in
+            guard let self else { return }
+            self.untertitel?(t, false)
+            // ⚡ Mitdenken: ab 4 Wörtern liest das Sprachmodell deinen halben Satz schon mit (einmal je Satz)
+            if !self.mitgedacht, t.split(separator: " ").count >= 4, let chat = self.chat {
+                self.mitgedacht = true
+                let c = self.client
+                Task.detached { _ = try? await c.post("/api/begleiter/vordenken", ["chat": chat, "text": t], zeit: 30) }
+            }
+        }
+        log("Anruf gestartet")
+        // 🐕 Wächter: Mikro tot (Routenwechsel, Unterbrechung) -> sofort wieder an
+        waechter = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, !self.aus, !self.ohr.laeuft else { return }
+                self.log("Wächter: Mikro lief nicht (phase \(self.ohr.phase)) – starte neu")
+                self.ohr.stoppen()
+                do { try self.ohr.starten(sitzung: false); self.log("Mikro neu gestartet") } catch { self.log("Mikro-Start fehlgeschlagen: \(error.localizedDescription)") }
+            }
+        }
         Task {
+            await live.erlaubnisHolen()
+            log("iPhone-Erkennung: \(live.bereit ? (live.offline ? "bereit (offline)" : "bereit (online)") : "nicht verfügbar – PC erkennt")")
             let b = try? await client.get("/api/begleiter", JSONWert.self)
             stimme = b?["einst"]?["stimme"]?.text
             // ⚡ eigener, schlanker Telefonat-Chat (der große Helfer-Chat mit allem Verlauf machte jede Antwort langsam);
@@ -322,6 +371,8 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             if let c = try? await client.post("/api/chats", neu), let id = c["id"]?.text {
                 chat = id
                 _ = try? await client.post("/api/chats/\(id)/aendern", ["titel": "📞 Telefonat " + Date().formatted(date: .abbreviated, time: .shortened)])
+                // ⚡ Anfang (Anweisungen, ~4600 Token) schon einlesen, während sie dich begrüßt -> erste Antwort 0,6 s statt 5 s
+                Task.detached { [client] in _ = try? await client.post("/api/begleiter/vordenken", ["chat": id], zeit: 60) }
             } else if let c = try? await client.post("/api/begleiter/chat", [:]) { chat = c["id"]?.text }
             // ⚡ Stimme + Sprachmodell am PC sofort laden (nach einem NitraX-Neustart dauerte die erste Antwort sonst > 1 min)
             var vor: [String: Any] = ["sprache": "German"]
@@ -329,7 +380,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             Task.detached { [client] in _ = try? await client.post("/api/anruf/vorbereiten", vor, zeit: 180) }
             if let n = b?["einst"]?["name"]?.text, !n.isEmpty { Gemeinsam.defaults.set(n, forKey: "helfer_name") }
             sagen([begruessung])
-            try? ohr.starten(sitzung: false)
+            do { try ohr.starten(sitzung: false); log("Mikro gestartet") } catch { log("Mikro-Start fehlgeschlagen: \(error.localizedDescription)") }
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(4))
                 guard let self, !self.aus else { return }
@@ -343,7 +394,14 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     }
 
     func beenden() {
+        guard !aus else { return }
         aus = true
+        waechter?.invalidate()
+        live.abbrechen()
+        log("Anruf beendet")
+        let zeilen = protokoll, c = client
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
+        Task.detached { _ = try? await c.post("/api/begleiter/anrufprotokoll", ["zeilen": zeilen, "version": version], zeit: 20) }
         ohr.stoppen()
         spieler?.stop()
         spieler = nil
@@ -377,8 +435,11 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         let (satz, holen) = warteschlange.removeFirst()
         ohr.helferZustand = "sprechen"
         laedt = true
+        let tTon = Date()
         let ton = await holen.value
         laedt = false
+        log(String(format: "Ton für Satz bereit nach %.2f s (%@)", Date().timeIntervalSince(tTon), ton == nil ? "keiner → iPhone-Stimme" : "\(ton!.count / 1000) KB"))
+        untertitel?(satz, true)
         guard !aus else { return }
         if let ton, let p = try? AVAudioPlayer(data: ton) {
             p.isMeteringEnabled = true
@@ -478,15 +539,27 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
 
     private func gehoert(_ wav: Data) async {
         defer { ohr.weiter() }
-        guard !aus, let r = try? await client.hochladen("/api/anruf/hoeren", daten: wav, dateiname: "anruf.wav", typ: "audio/wav", felder: ["sprache": "German"]) else {
-            sagen(["Ich hab dich gerade nicht verstanden, sag das bitte nochmal."])
-            return
+        guard !aus else { return }
+        let t0 = Date()
+        var text = await live.beenden()
+        if text.count > 1 {
+            log(String(format: "iPhone erkannt in %.2f s (%d Zeichen)", Date().timeIntervalSince(t0), text.count))
+        } else {
+            // Rückfall: PC-Erkennung (Whisper)
+            log("iPhone-Erkennung leer – frage den PC (\(wav.count / 32000) s Ton)")
+            guard let r = try? await client.hochladen("/api/anruf/hoeren", daten: wav, dateiname: "anruf.wav", typ: "audio/wav", felder: ["sprache": "German"]) else {
+                log("PC-Erkennung fehlgeschlagen")
+                sagen(["Ich hab dich gerade nicht verstanden, sag das bitte nochmal."])
+                return
+            }
+            text = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            log(String(format: "PC erkannt in %.2f s (%d Zeichen)", Date().timeIntervalSince(t0), text.count))
         }
-        let text = (r["text"]?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count > 1 else {
             stille += 1
             return
         }
+        untertitel?(text, false)
         if text.lowercased().range(of: #"\b(tschüss|tschüs|ciao|bis dann|bis später|ich leg auf|leg auf|auflegen|gute nacht)\b"#, options: .regularExpression) != nil {
             sagen(["Alles klar, bis gleich!"])
             try? await Task.sleep(for: .seconds(2.5))
@@ -511,7 +584,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         defer { denkt = false }
         // 💬 kurzer Laut, wenn das Nachdenken dauert (sonst wirkt die Leitung tot)
         let fueller = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(2.2))
+            try? await Task.sleep(for: .seconds(1.6))
             guard let self, !Task.isCancelled, !self.redet else { return }
             if let d = self.fuellTon, let p = try? AVAudioPlayer(data: d) {
                 p.isMeteringEnabled = true
@@ -521,48 +594,77 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             }
         }
         // Satz für Satz sprechen, sobald er fertig ist (nicht erst nach der ganzen Antwort)
-        var ganz = "", gesprochen = 0
-        func fertigeSaetze(_ ende: Bool) -> [String] {
-            let rest = String(ganz.dropFirst(gesprochen))
-            var aus: [String] = [], start = rest.startIndex, i = rest.startIndex
-            while i < rest.endIndex {
-                let z = rest[i]
-                let naechstes = rest.index(after: i)
-                if ".!?".contains(z) && (naechstes == rest.endIndex ? ende : rest[naechstes].isWhitespace) {
-                    aus.append(String(rest[start...i]))
-                    start = naechstes
+        antwortGanz = ""
+        antwortGesprochen = 0
+        let tFrage = Date()
+        let body: [String: Any] = ["text": nachricht, "modus": "begleiter", "bilder": bilder,
+                                   // gedaechtnis aus: genau wie beim Vorlesen -> der Anfang liegt schon im Zwischenspeicher (0,6 s statt 5 s)
+                                   "werkzeuge": ["web": false, "bild": false, "gedaechtnis": false, "denken": "aus"]]
+        let lauf = Task { @MainActor [weak self] () -> String? in
+            guard let self else { return nil }
+            var ersterText = true
+            do {
+                for try await ev in self.client.strom("/api/chats/\(chat)/senden", body) {
+                    if Task.isCancelled { return "abgebrochen" }
+                    switch ev["t"]?.text ?? "" {
+                    case "text":
+                        if ersterText { ersterText = false; self.log(String(format: "erstes Wort vom Sprachmodell nach %.2f s", Date().timeIntervalSince(tFrage))) }
+                        self.antwortGanz += ev["d"]?.text ?? ""
+                        let s = self.fertigeSaetze(false)
+                        if !s.isEmpty { fueller.cancel(); self.sagen(s) }
+                    case "zurueck":
+                        let n = min(Int(ev["n"]?.zahl ?? 0), self.antwortGanz.count - self.antwortGesprochen)
+                        if n > 0 { self.antwortGanz = String(self.antwortGanz.dropLast(n)) }
+                    default: break
+                    }
                 }
-                i = naechstes
+                return nil
+            } catch {
+                return Task.isCancelled ? "abgebrochen" : error.localizedDescription
             }
-            if ende, start < rest.endIndex { aus.append(String(rest[start...])) }
-            gesprochen += rest.distance(from: rest.startIndex, to: ende ? rest.endIndex : start)
-            for roh in aus {                                   // [freude] & Co. -> Gesicht der Figur im Videoanruf
-                if let r = roh.range(of: #"\[([a-zäöü]+)\]"#, options: .regularExpression) {
-                    gefuehl?(String(roh[r]).trimmingCharacters(in: CharacterSet(charactersIn: "[]")))
-                }
-            }
-            return aus.map { SiriHilfe.sprechbar($0) }.filter { $0.count > 1 }
         }
-        do {
-            for try await ev in client.strom("/api/chats/\(chat)/senden", ["text": nachricht, "modus": "begleiter", "bilder": bilder,
-                                                                           "werkzeuge": ["web": false, "bild": false, "gedaechtnis": true, "denken": "aus"]]) {
-                switch ev["t"]?.text ?? "" {
-                case "text":
-                    ganz += ev["d"]?.text ?? ""
-                    let s = fertigeSaetze(false)
-                    if !s.isEmpty { fueller.cancel(); sagen(s) }
-                case "zurueck":
-                    let n = min(Int(ev["n"]?.zahl ?? 0), ganz.count - gesprochen)
-                    if n > 0 { ganz = String(ganz.dropLast(n)) }
-                default: break
-                }
-            }
-            fueller.cancel()
-            let s = fertigeSaetze(true)
-            if !s.isEmpty { sagen(s) } else if gesprochen == 0 { sagen(["Hm, da ist mir gerade nichts eingefallen – sag das bitte nochmal."]) }
-        } catch {
-            fueller.cancel()
+        // ⏱ hängt die Antwort (PC beschäftigt), nach 30 s abbrechen – sonst hörte das Mikro nie wieder zu
+        let grenze = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(30))
+            guard !Task.isCancelled else { return }
+            self?.log("Antwort hängt > 30 s – breche ab")
+            lauf.cancel()
+        }
+        let fehler = await lauf.value
+        grenze.cancel()
+        fueller.cancel()
+        if let fehler {
+            log("Antwort-Strom: \(fehler)")
             sagen(["Oh, da hat gerade die Verbindung gewackelt – sag das bitte nochmal."])
+            return
         }
+        let rest = fertigeSaetze(true)
+        if !rest.isEmpty { sagen(rest) } else if antwortGesprochen == 0 { sagen(["Hm, da ist mir gerade nichts eingefallen – sag das bitte nochmal."]) }
+    }
+
+    private var mitgedacht = false
+    private var antwortGanz = ""
+    private var antwortGesprochen = 0
+
+    private func fertigeSaetze(_ ende: Bool) -> [String] {
+        let rest = String(antwortGanz.dropFirst(antwortGesprochen))
+        var aus: [String] = [], start = rest.startIndex, i = rest.startIndex
+        while i < rest.endIndex {
+            let z = rest[i]
+            let naechstes = rest.index(after: i)
+            if ".!?".contains(z) && (naechstes == rest.endIndex ? ende : rest[naechstes].isWhitespace) {
+                aus.append(String(rest[start...i]))
+                start = naechstes
+            }
+            i = naechstes
+        }
+        if ende, start < rest.endIndex { aus.append(String(rest[start...])) }
+        antwortGesprochen += rest.distance(from: rest.startIndex, to: ende ? rest.endIndex : start)
+        for roh in aus {                                   // [freude] & Co. -> Gesicht der Figur im Videoanruf
+            if let r = roh.range(of: #"\[([a-zäöü]+)\]"#, options: .regularExpression) {
+                gefuehl?(String(roh[r]).trimmingCharacters(in: CharacterSet(charactersIn: "[]")))
+            }
+        }
+        return aus.map { SiriHilfe.sprechbar($0) }.filter { $0.count > 1 }
     }
 }
