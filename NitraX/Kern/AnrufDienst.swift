@@ -126,8 +126,7 @@ final class AnrufDienst: NSObject, ObservableObject {
         let uuid = UUID()
         anrufer = name
         videoGewuenscht = video
-        aktiv = (uuid, ["Hey, schön, dass du anrufst! Was gibt's?", "Hi! Na, was kann ich für dich tun?",
-                        "Hallo du! Schön, dich zu hören.", "Hey! Ich hab grad an dich gedacht."].randomElement()!, name)
+        aktiv = (uuid, Stimmvorrat.gruesse.randomElement()!, name)
         let a = CXStartCallAction(call: uuid, handle: CXHandle(type: .generic, value: name))
         a.isVideo = video
         a.contactIdentifier = name
@@ -287,6 +286,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private var aus = false
     private var stille = 0
     private var stimme: String?
+    private var helferModell: String?
     private var pcStimmeLangsam = 0
     private var fuellTon: Data?                          // »Mhm, Moment.« in IHRER Stimme (beim Abheben geholt)
     private var stromGeht = true
@@ -357,8 +357,9 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
                 guard let self, !self.aus else { return }
                 self.sekunden += 1
                 if self.sekunden % 60 == 0 {                      // ⏰ Stimme + Sprachmodell am PC wach halten
-                    var vor: [String: Any] = ["sprache": "German"]
+                    var vor: [String: Any] = ["sprache": "de", "geraet": true]
                     if let st = self.stimme, !st.isEmpty { vor["stimme"] = st }
+                    if let m = self.helferModell, !m.isEmpty { vor["modell"] = m }
                     let c = self.client
                     Task.detached { _ = try? await c.post("/api/anruf/vorbereiten", vor, zeit: 60) }
                 }
@@ -369,10 +370,23 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             }
         }
         Task {
+            // 👋 Begrüßung SOFORT – aus dem Vorrat in ihrer Stimme (kein Warten auf den PC), erst danach der Rest
+            stimme = Gemeinsam.defaults.string(forKey: "helfer_stimme")
+            sagen([begruessung])
+            do { try ohr.starten(sitzung: false); log("Mikro gestartet") } catch { log("Mikro-Start fehlgeschlagen: \(error.localizedDescription)") }
+            fuellTon = Stimmvorrat.daten(Stimmvorrat.fueller[0], stimme)
             await live.erlaubnisHolen()
             log("iPhone-Erkennung: \(live.bereit ? (live.offline ? "bereit (offline)" : "bereit (online)") : "nicht verfügbar – PC erkennt")")
             let b = try? await client.get("/api/begleiter", JSONWert.self)
-            stimme = b?["einst"]?["stimme"]?.text
+            if let st = b?["einst"]?["stimme"]?.text { stimme = st; Gemeinsam.defaults.set(st, forKey: "helfer_stimme") }
+            helferModell = b?["einst"]?["modell"]?.text ?? Gemeinsam.defaults.string(forKey: "helfer_modell")
+            // ⚡ PC vorbereiten: Bildmodelle raus, schnelle Stimme + HELFER-Modell laden (vorher: falsche Sprache -> Fish, falsches Modell -> Qwen 27B)
+            let vorbereitet = Task.detached { [client, stimme, helferModell] in
+                var vor: [String: Any] = ["sprache": "de", "geraet": true]
+                if let stimme, !stimme.isEmpty { vor["stimme"] = stimme }
+                if let helferModell, !helferModell.isEmpty { vor["modell"] = helferModell }
+                _ = try? await client.post("/api/anruf/vorbereiten", vor, zeit: 180)
+            }
             // ⚡ eigener, schlanker Telefonat-Chat (der große Helfer-Chat mit allem Verlauf machte jede Antwort langsam);
             // er erscheint im Gesprächsverlauf, das Gedächtnis des Helfers gilt trotzdem
             var neu: [String: Any] = ["art": "begleiter"]
@@ -380,20 +394,19 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             if let c = try? await client.post("/api/chats", neu), let id = c["id"]?.text {
                 chat = id
                 _ = try? await client.post("/api/chats/\(id)/aendern", ["titel": "📞 Telefonat " + Date().formatted(date: .abbreviated, time: .shortened)])
-                // ⚡ Anfang (Anweisungen, ~4600 Token) schon einlesen, während sie dich begrüßt -> erste Antwort 0,6 s statt 5 s
-                Task.detached { [client] in _ = try? await client.post("/api/begleiter/vordenken", ["chat": id], zeit: 60) }
+                // ⚡ Anfang (Anweisungen, ~4600 Token) schon einlesen, sobald das Modell bereit ist -> erste Antwort 0,6 s statt 5 s
+                Task.detached { [client] in
+                    _ = await vorbereitet.value
+                    _ = try? await client.post("/api/begleiter/vordenken", ["chat": id], zeit: 60)
+                }
             } else if let c = try? await client.post("/api/begleiter/chat", [:]) { chat = c["id"]?.text }
-            // ⚡ Stimme + Sprachmodell am PC sofort laden (nach einem NitraX-Neustart dauerte die erste Antwort sonst > 1 min)
-            var vor: [String: Any] = ["sprache": "German"]
-            if let stimme, !stimme.isEmpty { vor["stimme"] = stimme }
-            Task.detached { [client] in _ = try? await client.post("/api/anruf/vorbereiten", vor, zeit: 180) }
             if let n = b?["einst"]?["name"]?.text, !n.isEmpty { Gemeinsam.defaults.set(n, forKey: "helfer_name") }
-            sagen([begruessung])
-            do { try ohr.starten(sitzung: false); log("Mikro gestartet") } catch { log("Mikro-Start fehlgeschlagen: \(error.localizedDescription)") }
-            Task { [weak self] in
-                try? await Task.sleep(for: .seconds(4))
-                guard let self, !self.aus else { return }
-                self.fuellTon = await self.tonHolen("Mhm, Moment.")
+            if fuellTon == nil {
+                Task { [weak self] in
+                    _ = await vorbereitet.value
+                    guard let self, !self.aus else { return }
+                    self.fuellTon = await self.tonHolen(Stimmvorrat.fueller[0])
+                }
             }
         }
     }
@@ -411,6 +424,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         let zeilen = protokoll, c = client
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? ""
         Task.detached { _ = try? await c.post("/api/begleiter/anrufprotokoll", ["zeilen": zeilen, "version": version], zeit: 20) }
+        Task { @MainActor in try? await Task.sleep(for: .seconds(3)); await Stimmvorrat.auffuellen(c) }
         ohr.stoppen()
         spieler?.stop()
         spieler = nil
@@ -462,6 +476,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
 
     /// Ton eines Satzes in IHRER Stimme: schnelle Stimme (ganzer Satz als PCM -> WAV, ~1 s), sonst mp3
     private func tonHolen(_ satz: String) async -> Data? {
+        if let d = Stimmvorrat.daten(satz, stimme) { log("Stimme aus dem Vorrat (sofort)"); return d }
         if stromGeht, let anfrage = stromAnfrage(satz) {
             for versuch in 1...2 {
                 let t = Date()
@@ -473,7 +488,9 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
                         if rate >= 8000 && rate <= 96000 {
                             log(String(format: "Stimme (Strom) %.2f s, %d KB", Date().timeIntervalSince(t), d.count / 1000))
                             stromFehler = 0
-                            return Self.wav(pcm: d.dropFirst(4), rate: rate)
+                            let w = Self.wav(pcm: d.dropFirst(4), rate: rate)
+                            Stimmvorrat.merken(w, satz, stimme)
+                            return w
                         }
                     }
                     log(String(format: "Stimme (Strom) HTTP %d nach %.2f s (Versuch %d)", code, Date().timeIntervalSince(t), versuch))

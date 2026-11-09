@@ -152,6 +152,7 @@ struct HelferAnsicht: View {
         .onChange(of: bruecke.bereit) { _, b in
             if b { freihandSchalten(freihand) }
             if b { Task { try? await Task.sleep(for: .seconds(2.5)); HelferPortrait.holen(aus: bruecke.web) } }   // 🖼 für den Anrufkreis
+            if b, let c = studio.client { Task { try? await Task.sleep(for: .seconds(6)); await Stimmvorrat.auffuellen(c) } }   // 👋 Begrüßungen vorrätig
         }
         .onChange(of: augenAn) { _, an in if an { Task { await augen.starten() } } else { augen.stoppen() } }
         .onChange(of: augen.fehler) { _, f in if let f { studio.meldung = f; augen.fehler = nil } }
