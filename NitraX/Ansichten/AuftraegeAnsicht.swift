@@ -112,6 +112,9 @@ struct AuftraegeAnsicht: View {
                 ToolbarItem(placement: .topBarTrailing) {
                     NavigationLink { GalerieAnsicht() } label: { Label("Offline-Galerie", systemImage: "photo.stack") }
                 }
+                ToolbarItem(placement: .topBarLeading) {
+                    NavigationLink { ProjekteAnsicht() } label: { Label("Projekte", systemImage: "folder") }   // 📁
+                }
             }
             .refreshable { await studio.aktualisieren() }
             .navigationDestination(for: Auftrag.self) { AuftragDetail(auftrag: $0) }
@@ -311,6 +314,7 @@ struct AuftragDetail: View {
                 }
                 .buttonStyle(.bordered).controlSize(.large)
             }
+            ProjektZuordnen(auftrag: a)                                     // 📁
             if a.fertig && a.hatVideo {
                 Button { schnitt = true } label: { Label("Kürzen & teilen", systemImage: "scissors").frame(maxWidth: .infinity) }
                     .buttonStyle(.bordered).controlSize(.large)

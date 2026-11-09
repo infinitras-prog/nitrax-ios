@@ -241,11 +241,12 @@ struct TutorialUebersicht: View {
 @MainActor
 struct WasIstNeu: View {
     @Environment(\.dismiss) private var dismiss
-    static let version = "0.5.26"
+    static let version = "0.5.27"
     static let punkte: [(String, String, String)] = [
         ("graduationcap.fill", "Einführungen für jeden Workflow", "Erstellen → 🎓 Einführungen: Schritt für Schritt erklärt, mit Beispielen und echtem Testlauf, den du live mitverfolgst."),
         ("hammer.fill", "Die Werkstatt zeigt, was sie tut", "Auf der Startseite siehst du, woran sie gerade arbeitet – z. B. »Regie plant: 4 von 13 Szenen«."),
         ("list.number", "Mehrschritt-Aufträge", "»Erst Song, dann Film, dann …« – dein Helfer arbeitet Schritt für Schritt, meldet jeden Schritt und macht nach Neustarts weiter."),
+        ("folder.fill", "Projekt-Mappen", "Aufträge → 📁: Song, Film und Varianten eines Vorhabens zusammen, mit Notiz. Mehrteilige Helfer-Aufträge bekommen ihre Mappe automatisch."),
         ("waveform.path.ecg", "Systemzustand", "Einstellungen → Systemzustand: Grafikkarte, Aufträge, Werkstatt, Datensicherung, letzte Fehler auf einen Blick."),
         ("externaldrive.badge.checkmark", "Tägliche Datensicherung", "Chats, Helfer, Stimmen und Einstellungen werden täglich gesichert (7 Stände)."),
         ("antenna.radiowaves.left.and.right", "Unterwegs schneller", "Viel weniger Daten pro Abfrage, und die App merkt sich den Tailscale-Weg selbst."),
