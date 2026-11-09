@@ -26,6 +26,7 @@ struct HauptAnsicht: View {
                 .tabItem { Label("Helfer", systemImage: "person.wave.2.fill") }
                 .tag(Navigation.Reiter.helfer)
         }
+        .modifier(SeitenleisteAufIPad())
         .overlay(alignment: .top) {
             if let m = studio.meldung {
                 Text(m)
@@ -264,5 +265,13 @@ enum FertigKlang {
     static func spielen() {
         guard UserDefaults.standard.object(forKey: "fertig_klang") as? Bool ?? true, let id else { return }
         AudioServicesPlaySystemSound(id)
+    }
+}
+
+
+/// 🖥 iPad: Tabs werden zur Seitenleiste wie am PC (iOS 18+), iPhone bleibt bei der Tab-Leiste
+struct SeitenleisteAufIPad: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) { content.tabViewStyle(.sidebarAdaptable) } else { content }
     }
 }

@@ -164,6 +164,7 @@ struct AuftragDetail: View {
                 }
                 .karte()
                 aktionen
+                if a.fertig && a.hatVideo && (a.vorMaximal || a.vorRealismus) { VorherNachher(auftrag: a) }   // ↔
                 if a.fertig { weiterKnoepfe }
             }
             .padding(16)
