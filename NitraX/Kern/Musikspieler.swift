@@ -25,12 +25,16 @@ final class Musikspieler: ObservableObject {
     var aktuell: Titel? { liste.indices.contains(index) ? liste[index] : nil }
     var aktiv: Bool { aktuell != nil }
 
-    /// Tonpfad eines Auftrags (Song oder Sprache)
+    /// Tonpfad eines Auftrags (Song oder Sprache). 0.5.29: AAC/M4A vom PC (/api/ton) – FLAC als »application/octet-stream«
+    /// ohne Endung erkannte AVPlayer nicht, der Player blieb stumm. M4A ist außerdem ~5× kleiner (Datenvolumen).
     static func tonPfad(_ a: Auftrag) -> String? {
-        if a.kind == "x-stimme" { return "/api/stimmen/datei/\(a.id)/Dialog.flac" }
-        if a.songInput != nil && !a.hatVideo { return "/api/flac/\(a.id)" }
+        if a.kind == "x-stimme" || (a.songInput != nil && !a.hatVideo) { return "/api/ton/\(a.id).m4a" }
         return nil
     }
+
+    /// Fehler beim Laden eines Titels (z. B. PC nicht erreichbar) – die Oberfläche zeigt ihn an
+    @Published var fehler: String?
+    private var statusBeob: NSKeyValueObservation?
 
     func abspielen(_ auftraege: [Auftrag], ab start: Int = 0, client: NXClient?, mischen: Bool = false) {
         guard let c = client else { return }
@@ -57,6 +61,17 @@ final class Musikspieler: ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(true)
         let asset = AVURLAsset(url: titel.url, options: ["AVURLAssetHTTPHeaderFieldsKey": c.cookieKopf])
         let item = AVPlayerItem(asset: asset)
+        statusBeob = item.observe(\.status, options: [.new]) { [weak self] it, _ in
+            guard it.status == .failed else { return }
+            let text = it.error?.localizedDescription ?? "unbekannter Fehler"
+            Task { @MainActor in
+                guard let self else { return }
+                self.fehler = "»\(titel.name)« lässt sich nicht abspielen: \(text)"
+                self.spielt = false
+                self.anzeige()
+            }
+        }
+        fehler = nil
         if let b = beobachter, let s = spieler { s.removeTimeObserver(b) }
         if let e = endeBeob { NotificationCenter.default.removeObserver(e) }
         let p = spieler ?? AVPlayer()
@@ -178,7 +193,11 @@ struct MiniSpieler: View {
                     .overlay { if t.bild == nil { Image(systemName: "music.note").foregroundStyle(Farbe.akzent) } }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(t.name).font(.subheadline.weight(.semibold)).lineLimit(1)
-                    ProgressView(value: m.dauer > 0 ? min(1, m.zeit / m.dauer) : 0).tint(Farbe.akzent)
+                    if let f = m.fehler {
+                        Text(f).font(.caption2).foregroundStyle(Farbe.fehler).lineLimit(2)
+                    } else {
+                        ProgressView(value: m.dauer > 0 ? min(1, m.zeit / m.dauer) : 0).tint(Farbe.akzent)
+                    }
                 }
                 Button { m.umschalten() } label: { Image(systemName: m.spielt ? "pause.fill" : "play.fill").font(.title3) }
                 Button { m.weiter() } label: { Image(systemName: "forward.fill") }.disabled(m.index + 1 >= m.liste.count)

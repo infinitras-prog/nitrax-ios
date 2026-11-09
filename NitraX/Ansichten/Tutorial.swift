@@ -241,8 +241,10 @@ struct TutorialUebersicht: View {
 @MainActor
 struct WasIstNeu: View {
     @Environment(\.dismiss) private var dismiss
-    static let version = "0.5.28"
+    static let version = "0.5.29"
     static let punkte: [(String, String, String)] = [
+        ("music.note", "Musik-Player repariert", "Songs spielen wieder – jetzt als AAC vom PC, rund 8× weniger Daten unterwegs. Klappt ein Titel nicht, steht der Grund im Player."),
+        ("puzzlepiece.extension.fill", "NitraX selbst erweitern", "Im Code-Agenten einfach schreiben, was NitraX zusätzlich können soll – er baut es sicher als Erweiterung (eigener Ordner, geprüft, mit Rückgängig)."),
         ("globe", "NitraX auf Englisch", "Ist dein iPhone auf Englisch gestellt, spricht die App Englisch – oder einzeln: iOS-Einstellungen → NitraX → Sprache."),
         ("checklist", "Helfer-Pläne zuverlässiger", "»Mach ein Bild und daraus ein GIF«: der Helfer plant den nötigen Zwischenschritt (Video) selbst, und Sofort-Ergebnisse wie GIFs zählen als fertig."),
         ("graduationcap.fill", "Einführungen für jeden Workflow", "Erstellen → 🎓 Einführungen: Schritt für Schritt erklärt, mit Beispielen und echtem Testlauf, den du live mitverfolgst."),
