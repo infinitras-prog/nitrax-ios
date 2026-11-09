@@ -22,6 +22,7 @@ struct HelferAnsicht: View {
     @State private var ar = false
     @State private var tagebuch = false
     @State private var verlauf = false
+    @ObservedObject private var anruf = AnrufDienst.shared
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
@@ -134,6 +135,16 @@ struct HelferAnsicht: View {
         // 🔇 Tab gewechselt / App im Hintergrund: sofort still (die Antwort steht trotzdem im Verlauf)
         .onChange(of: navigation.reiter) { _, r in if r != .helfer { stummSchalten() } }
         .onChange(of: phase) { _, ph in if ph != .active { stummSchalten() } }
+        .onChange(of: anruf.imGespraech) { _, an in
+            if an {
+                stummSchalten()
+                augen.stoppen()
+                bruecke.js("try { var f = window.nxHandyHelfer && window.nxHandyHelfer.figur && window.nxHandyHelfer.figur(); if (f && f.pausieren) f.pausieren(true) } catch (e) {}")
+            } else {
+                bruecke.js("try { var f = window.nxHandyHelfer && window.nxHandyHelfer.figur && window.nxHandyHelfer.figur(); if (f && f.pausieren) f.pausieren(false) } catch (e) {}")
+                if augenAn { Task { await augen.starten() } }
+            }
+        }
         .onChange(of: freihand) { _, an in freihandSchalten(an) }
         .onChange(of: bruecke.bereit) { _, b in
             if b { freihandSchalten(freihand) }

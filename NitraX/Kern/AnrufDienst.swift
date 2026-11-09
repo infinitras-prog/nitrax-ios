@@ -293,6 +293,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private var stromFehler = 0
     private let live = LiveErkennung()                 // 🗣 Erkennung auf dem iPhone, schon während du sprichst
     private var waechter: Timer?
+    private var sekunden = 0
     private let beginn = Date()
     private var protokoll: [String] = []
     /// 💬 Untertitel: (Text, spricht sie?)
@@ -353,7 +354,15 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         // 🐕 Wächter: Mikro tot (Routenwechsel, Unterbrechung) -> sofort wieder an
         waechter = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, !self.aus, !self.ohr.laeuft else { return }
+                guard let self, !self.aus else { return }
+                self.sekunden += 1
+                if self.sekunden % 60 == 0 {                      // ⏰ Stimme + Sprachmodell am PC wach halten
+                    var vor: [String: Any] = ["sprache": "German"]
+                    if let st = self.stimme, !st.isEmpty { vor["stimme"] = st }
+                    let c = self.client
+                    Task.detached { _ = try? await c.post("/api/anruf/vorbereiten", vor, zeit: 60) }
+                }
+                guard !self.ohr.laeuft else { return }
                 self.log("Wächter: Mikro lief nicht (phase \(self.ohr.phase)) – starte neu")
                 self.ohr.stoppen()
                 do { try self.ohr.starten(sitzung: false); self.log("Mikro neu gestartet") } catch { self.log("Mikro-Start fehlgeschlagen: \(error.localizedDescription)") }
@@ -454,13 +463,29 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     /// Ton eines Satzes in IHRER Stimme: schnelle Stimme (ganzer Satz als PCM -> WAV, ~1 s), sonst mp3
     private func tonHolen(_ satz: String) async -> Data? {
         if stromGeht, let anfrage = stromAnfrage(satz) {
-            if let (d, resp) = try? await URLSession.shared.data(for: anfrage), (resp as? HTTPURLResponse)?.statusCode == 200, d.count > 2004 {
-                let rate = d.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
-                if rate >= 8000 && rate <= 96000 { stromFehler = 0; return Self.wav(pcm: d.dropFirst(4), rate: rate) }
+            for versuch in 1...2 {
+                let t = Date()
+                do {
+                    let (d, resp) = try await URLSession.shared.data(for: anfrage)
+                    let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                    if code == 200, d.count > 2004 {
+                        let rate = d.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
+                        if rate >= 8000 && rate <= 96000 {
+                            log(String(format: "Stimme (Strom) %.2f s, %d KB", Date().timeIntervalSince(t), d.count / 1000))
+                            stromFehler = 0
+                            return Self.wav(pcm: d.dropFirst(4), rate: rate)
+                        }
+                    }
+                    log(String(format: "Stimme (Strom) HTTP %d nach %.2f s (Versuch %d)", code, Date().timeIntervalSince(t), versuch))
+                    if code == 409 { break }                        // kein Streaming am PC
+                } catch {
+                    log(String(format: "Stimme (Strom) Fehler nach %.2f s: %@ (Versuch %d)", Date().timeIntervalSince(t), error.localizedDescription, versuch))
+                }
+                if Task.isCancelled { return nil }
+                try? await Task.sleep(for: .milliseconds(600))
             }
-            if Task.isCancelled { return nil }
             stromFehler += 1
-            if stromFehler >= 2 { stromGeht = false }          // zweimal nichts -> nur noch ganze Sätze als mp3
+            if stromFehler >= 3 { stromGeht = false }
         }
         if Task.isCancelled || pcStimmeLangsam >= 3 { return nil }
         return await pcTon(satz)
@@ -496,6 +521,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private func pcTon(_ satz: String) async -> Data? {
         var body: [String: Any] = ["text": satz, "sprache": "de"]
         if let stimme, !stimme.isEmpty { body["stimme"] = stimme }
+        body["schnell"] = true
         guard let url = client.url("/api/anruf/sprechen"), let daten = try? JSONSerialization.data(withJSONObject: body) else { return nil }
         var r = URLRequest(url: url)
         r.httpMethod = "POST"
