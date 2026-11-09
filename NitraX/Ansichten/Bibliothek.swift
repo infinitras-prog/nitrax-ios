@@ -23,6 +23,25 @@ struct BibliothekAnsicht: View {
     }
 
     @AppStorage("bib_art") private var artRoh = Art.alle.rawValue
+    /// 📁 eigene Alben (auf dem iPhone): Name -> Auftrags-IDs
+    @AppStorage("bib_alben") private var albenRoh = Data()
+    @AppStorage("bib_album") private var album = ""
+    @State private var neuesAlbum = false
+    @State private var albumName = ""
+
+    private var alben: [String: [String]] {
+        (try? JSONDecoder().decode([String: [String]].self, from: albenRoh)) ?? [:]
+    }
+    private func albenSetzen(_ a: [String: [String]]) { albenRoh = (try? JSONEncoder().encode(a)) ?? Data() }
+
+    private func zuAlbum(_ name: String) {
+        var a = alben
+        a[name] = Array(Set((a[name] ?? []) + auswahl))
+        albenSetzen(a)
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        studio.meldung = "📁 \(auswahl.count) zu »\(name)« hinzugefügt"
+        auswahl = []; waehlen = false
+    }
     @AppStorage("bib_spalten") private var spalten = 3
     @AppStorage("bib_alt_zuerst") private var altZuerst = false
     @State private var auswahl: Set<String> = []
@@ -35,6 +54,7 @@ struct BibliothekAnsicht: View {
     private var art: Art { Art(rawValue: artRoh) ?? .alle }
 
     private func passt(_ a: Auftrag) -> Bool {
+        if !album.isEmpty { return (alben[album] ?? []).contains(a.id) }
         switch art {
         case .alle: return true
         case .bilder: return a.bilderAnzahl > 0 && !a.hatVideo
@@ -112,8 +132,8 @@ struct BibliothekAnsicht: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Art.allCases) { a in
-                    let an = a == art
-                    Button { withAnimation(.snappy) { artRoh = a.rawValue } } label: {
+                    let an = a == art && album.isEmpty
+                    Button { withAnimation(.snappy) { artRoh = a.rawValue; album = "" } } label: {
                         Label(a.rawValue.replacingOccurrences(of: "❤ ", with: ""), systemImage: a.symbol)
                             .font(.subheadline.weight(.semibold))
                             .padding(.horizontal, 12).padding(.vertical, 7)
@@ -122,9 +142,35 @@ struct BibliothekAnsicht: View {
                     }
                     .buttonStyle(.plain)
                 }
+                // 📁 Alben
+                ForEach(alben.keys.sorted(), id: \.self) { n in
+                    let an = album == n
+                    Button { withAnimation(.snappy) { album = an ? "" : n } } label: {
+                        Label("\(n) · \(alben[n]?.count ?? 0)", systemImage: "folder.fill")
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 12).padding(.vertical, 7)
+                            .background(an ? AnyShapeStyle(Farbe.verlauf) : AnyShapeStyle(Farbe.karte), in: Capsule())
+                            .foregroundStyle(an ? .white : .primary)
+                    }
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button(role: .destructive) {
+                            var a = alben; a[n] = nil; albenSetzen(a); if album == n { album = "" }
+                        } label: { Label("Album entfernen (Ergebnisse bleiben)", systemImage: "folder.badge.minus") }
+                    }
+                }
             }
             .padding(.vertical, 2)
         }
+        .alert("Neues Album", isPresented: $neuesAlbum) {
+            TextField("Name", text: $albumName)
+            Button("Anlegen") {
+                let n = albumName.trimmingCharacters(in: .whitespaces)
+                if !n.isEmpty { zuAlbum(n) }
+                albumName = ""
+            }
+            Button("Abbrechen", role: .cancel) { albumName = "" }
+        } message: { Text("Die ausgewählten Ergebnisse kommen hinein.") }
     }
 
     private var kopfzeile: some View {
@@ -195,6 +241,17 @@ struct BibliothekAnsicht: View {
             else { Text("\(auswahl.count) ausgewählt").font(.subheadline.weight(.semibold)) }
             Spacer()
             // 📤 alle markierten teilen · ⬇ in Fotos sichern
+            Menu {
+                ForEach(alben.keys.sorted(), id: \.self) { n in Button(n) { zuAlbum(n) } }
+                Button { neuesAlbum = true } label: { Label("Neues Album …", systemImage: "folder.badge.plus") }
+                if !album.isEmpty {
+                    Button(role: .destructive) {
+                        var a = alben; a[album] = (a[album] ?? []).filter { !auswahl.contains($0) }; albenSetzen(a)
+                        auswahl = []; waehlen = false
+                    } label: { Label("Aus »\(album)« nehmen", systemImage: "folder.badge.minus") }
+                }
+            } label: { Image(systemName: "folder.badge.plus") }
+            .disabled(auswahl.isEmpty)
             Button { Task { await holenAlle(sichern: false) } } label: { Image(systemName: "square.and.arrow.up") }
                 .disabled(auswahl.isEmpty || arbeitet != nil)
             Button { Task { await holenAlle(sichern: true) } } label: { Image(systemName: "square.and.arrow.down") }
