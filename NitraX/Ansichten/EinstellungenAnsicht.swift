@@ -12,7 +12,7 @@ struct EinstellungenAnsicht: View {
     @AppStorage("faceid_an") private var faceID = false
     @AppStorage("fertig_klang") private var fertigKlang = true
     @AppStorage("echo_aec") private var echoAEC = false
-    @AppStorage("stimme_strom") private var stimmeStrom = false
+    @AppStorage("stimme_strom") private var stimmeStrom = true
     @AppStorage("spar_modus") private var sparModus = "auto"
     @State private var ruheAn = Ruhezeit.an
     @State private var ruheVon = EinstellungenAnsicht.datum(Ruhezeit.von)

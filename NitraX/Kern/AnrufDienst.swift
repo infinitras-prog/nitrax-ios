@@ -453,6 +453,10 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             fuellTon = Stimmvorrat.daten(Stimmvorrat.fueller[0], stimme)
             await live.erlaubnisHolen()
             log("iPhone-Erkennung: \(live.bereit ? (live.offline ? "bereit (offline)" : "bereit (online)") : "nicht verfügbar – PC erkennt")")
+            if let s = try? await client.stand(), !s.fremd.isEmpty {        // 🎮 Grafikkarte belegt (Anruf 09.11. 09:24: 52 s)
+                log("PC: \(s.fremd.joined(separator: ", ")) nutzt die Grafikkarte")
+                sagen(["Kleiner Hinweis: Am PC läuft gerade \(s.fremd.first ?? "ein Spiel"), deshalb antworte ich vielleicht etwas langsamer."])
+            }
             let b = try? await client.get("/api/begleiter", JSONWert.self)
             if let st = b?["einst"]?["stimme"]?.text { stimme = st; Gemeinsam.defaults.set(st, forKey: "helfer_stimme") }
             helferModell = b?["einst"]?["modell"]?.text ?? Gemeinsam.defaults.string(forKey: "helfer_modell")
@@ -551,7 +555,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private func sagen(_ saetze: [String]) {
         for s in saetze.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where s.count > 1 {
             // ⚡ Runde 3, Nr. 1 (Schalter, experimentell): ist gerade Stille, spielt der erste Satz schon ab dem ersten Wort
-            if UserDefaults.standard.bool(forKey: "stimme_strom"), stromGeht, !redet, warteschlange.isEmpty, stromSatz == nil,
+            if UserDefaults.standard.object(forKey: "stimme_strom") as? Bool ?? true, stromGeht, !redet, warteschlange.isEmpty, stromSatz == nil,
                Stimmvorrat.daten(s, stimme) == nil {
                 stromSatz = s
                 warteschlange.append((s, Task<Data?, Never> { nil }))

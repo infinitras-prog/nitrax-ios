@@ -19,7 +19,7 @@ final class Fehlerbericht: NSObject, MXMetricManagerSubscriber, @unchecked Senda
     func melden(_ ort: String, _ text: String) {
         let z = Date().formatted(.dateTime.hour().minute().second()) + "  [\(ort)] " + text
         sperre.lock()
-        zeilen.append(String(z.prefix(380)))
+        zeilen.append(String(z.prefix(ort == "Absturz" || ort == "Hänger" ? 1600 : 380)))
         if zeilen.count > 200 { zeilen.removeFirst(zeilen.count - 200) }
         UserDefaults.standard.set(zeilen, forKey: "fehler_offen")
         sperre.unlock()
@@ -42,15 +42,34 @@ final class Fehlerbericht: NSObject, MXMetricManagerSubscriber, @unchecked Senda
         }
     }
 
+    /// Aufrufkette des betroffenen Fadens kompakt: »NitraX+0x1a2b3c < SwiftUI+0x… < …« (oberste 12 Ebenen)
+    static func stapel(_ json: Data) -> String {
+        guard let o = try? JSONSerialization.jsonObject(with: json) as? [String: Any],
+              let staepel = o["callStacks"] as? [[String: Any]] else { return "?" }
+        let faden = staepel.first { ($0["threadAttributed"] as? Bool) == true } ?? staepel.first
+        var aus: [String] = []
+        var rahmen = (faden?["callStackRootFrames"] as? [[String: Any]])?.first
+        while let r = rahmen, aus.count < 12 {
+            let name = r["binaryName"] as? String ?? "?"
+            let ab = (r["offsetIntoBinaryTextSegment"] as? NSNumber)?.intValue ?? 0
+            aus.append("\(name)+0x\(String(ab, radix: 16))")
+            rahmen = (r["subFrames"] as? [[String: Any]])?.first
+        }
+        return aus.isEmpty ? "?" : aus.joined(separator: " < ")
+    }
+
     // MARK: MetricKit – Abstürze, Hänger, Speicher-Abbrüche (kommen gesammelt, meist beim nächsten Start)
     func didReceive(_ payloads: [MXDiagnosticPayload]) {
         for p in payloads {
             for c in p.crashDiagnostics ?? [] {
-                melden("Absturz", "Signal \(c.signal.map { "\($0)" } ?? "?") · Ausnahme \(c.exceptionType.map { "\($0)" } ?? "-") · "
-                       + (c.terminationReason ?? "") + " · " + String(String(decoding: c.callStackTree.jsonRepresentation(), as: UTF8.self).prefix(200)))
+                var grund = ""
+                if #available(iOS 17.0, *), let e = c.exceptionReason { grund = " · \(e.className): \(e.composedMessage)" }
+                melden("Absturz", "App \(c.applicationVersion) · Signal \(c.signal.map { "\($0)" } ?? "?") · Ausnahme \(c.exceptionType.map { "\($0)" } ?? "-")"
+                       + (c.exceptionCode.map { " · Code \($0)" } ?? "") + grund + (c.terminationReason.map { " · " + $0 } ?? "")
+                       + " · Stapel: " + Self.stapel(c.callStackTree.jsonRepresentation()))
             }
             for h in p.hangDiagnostics ?? [] {
-                melden("Hänger", "\(h.hangDuration.formatted()) · " + String(String(decoding: h.callStackTree.jsonRepresentation(), as: UTF8.self).prefix(200)))
+                melden("Hänger", "\(h.hangDuration.formatted()) · Stapel: " + Self.stapel(h.callStackTree.jsonRepresentation()))
             }
             for d in p.diskWriteExceptionDiagnostics ?? [] { melden("Schreiblast", "\(d.totalWritesCaused.formatted())") }
             for c in p.cpuExceptionDiagnostics ?? [] { melden("Prozessor", "\(c.totalCPUTime.formatted())") }

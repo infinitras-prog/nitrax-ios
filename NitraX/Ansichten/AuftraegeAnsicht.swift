@@ -361,7 +361,7 @@ struct AuftragDetail: View {
         }
         let text = a.original.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count > 3, a.titel == text else { return nil }               // nur echte Beschreibungen, keine Dateinamen
-        if a.bilderAnzahl > 0, !a.hatVideo, let w = wf("x-img") { return (w, ["prompt": .text(text)]) }
+        if a.bilderAnzahl > 0, !a.hatVideo, let w = wf("x-t2i") { return (w, ["prompt": .text(text)]) }
         if a.hatVideo, let w = wf("i2v"), let bild = a.image, !bild.isEmpty {
             return (w, ["idee": .text(text), "bild": .objekt(["quelle": .text("upload"), "name": .text(bild)])])
         }
