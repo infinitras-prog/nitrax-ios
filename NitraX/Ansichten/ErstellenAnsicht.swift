@@ -16,6 +16,7 @@ struct ErstellenAnsicht: View {
             ScrollView {
                 VStack(spacing: 14) {
                     VorlagenLeiste()
+                    FavoritenVorlagen()                                      // ❤ eigene Lieblingsergebnisse als Vorlage
                     Picker("Kategorie", selection: $kategorie) {
                         ForEach(kategorien, id: \.self) { k in Text((k.count > 2 ? k[2] + " " : "") + (k.count > 1 ? k[1] : k[0])).tag(k[0]) }
                     }
@@ -235,5 +236,53 @@ extension JSONWert {
         case .objekt(let o): return o.mapValues(\.alsAny)
         case .nichts: return NSNull()
         }
+    }
+}
+
+
+/// ❤ Deine Favoriten als Vorlage mit Bild: antippen -> »Das will ich auch« = gleiche Einstellungen, neuer Zufall
+@MainActor
+struct FavoritenVorlagen: View {
+    @EnvironmentObject private var studio: Studio
+    @State private var gewaehlt: Auftrag?
+
+    private var favoriten: [Auftrag] {
+        Array(studio.stand.auftraege.filter { $0.fav && $0.fertig && $0.wiederholbar }
+            .sorted { ($0.finished ?? 0) > ($1.finished ?? 0) }.prefix(20))
+    }
+
+    var body: some View {
+        if !favoriten.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("❤ Deine Favoriten als Vorlage").font(.subheadline.weight(.semibold))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        ForEach(favoriten) { a in
+                            Button { gewaehlt = a } label: {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    BibliothekKachel(a: a).frame(width: 110, height: 110)
+                                    Text(a.titel).font(.caption2).lineLimit(1).frame(width: 110, alignment: .leading)
+                                }
+                            }
+                            .buttonStyle(NXDruck())
+                        }
+                    }
+                }
+            }
+            .confirmationDialog(gewaehlt?.titel ?? "", isPresented: Binding(get: { gewaehlt != nil }, set: { if !$0 { gewaehlt = nil } }),
+                                titleVisibility: .visible) {
+                Button("✨ Das will ich auch (neue Variante)") { if let a = gewaehlt { Task { await nochmal(a) } } }
+            } message: { Text("Gleiche Einstellungen, neuer Zufall – das Ergebnis wird ähnlich, aber ein Einzelstück.") }
+        }
+    }
+
+    private func nochmal(_ a: Auftrag) async {
+        guard let c = studio.client else { return }
+        do {
+            _ = try await c.post("/api/handy/start", ["wf": "_variante", "felder": ["id": a.id]], zeit: 120)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+            studio.meldung = "✨ Läuft – ähnlich wie »\(a.titel)«"
+            await studio.aktualisieren()
+        } catch { studio.meldung = error.localizedDescription }
     }
 }

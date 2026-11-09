@@ -190,7 +190,7 @@ final class Studio: ObservableObject {
         do {
             let roh = try await c.roh("/api/state")
             let s = try JSONDecoder().decode(StudioStand.self, from: roh)
-            stand = s
+            withAnimation(.snappy(duration: 0.35)) { stand = s }             // ✨ neue/fertige Aufträge gleiten statt springen
             try? roh.write(to: Self.ablage("stand.json"), options: .atomic)
             erreichbar = true
             Benachrichtigungen.vergleichen(s)
