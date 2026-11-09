@@ -36,12 +36,13 @@ struct Auftrag: Decodable, Identifiable, Hashable {
     var zurueckgestellt = false       // ⏸ vom Handy zurückgestellt
     var reihe: Double?                // Platz in der Warteschlange (kleiner = früher)
     var projekt: String?              // 📁 Projekt-Mappe
+    var veroeffentlicht: [JSONWert] = []   // 📤 plattformfertige Fassungen
 
     enum K: String, CodingKey {
         case id, kind, status, progress, stage, eta, elapsed, original, image, bilder, video, song_input, created, started, finished
         case error, fehler_klar, clips, probe_halt, total_seconds, fav
         case again, maximal, vor_maximal, realismus, vor_realismus, lob
-        case ki_stichworte, handy_vorlage, halt_hand, order, projekt
+        case ki_stichworte, handy_vorlage, halt_hand, order, projekt, veroeffentlicht
     }
 
     init(from decoder: Decoder) throws {
@@ -84,6 +85,7 @@ struct Auftrag: Decodable, Identifiable, Hashable {
         zurueckgestellt = w(JSONWert.self, .halt_hand)?.wahr ?? false
         reihe = w(Double.self, .order)
         projekt = w(String.self, .projekt)
+        veroeffentlicht = w([JSONWert].self, .veroeffentlicht) ?? []
     }
 
     /// passt zur Suche (Titel, Art, Bildinhalt) - jedes Wort muss irgendwo vorkommen

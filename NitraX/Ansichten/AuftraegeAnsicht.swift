@@ -171,6 +171,7 @@ struct AuftragDetail: View {
     @State private var enthuellen = false
     @State private var live: UIImage?
     @State private var schnitt = false
+    @State private var veroeffentlichen = false
 
     /// immer der aktuelle Stand (Fortschritt läuft live weiter)
     private var a: Auftrag { studio.stand.auftraege.first { $0.id == auftrag.id } ?? auftrag }
@@ -217,6 +218,7 @@ struct AuftragDetail: View {
         }
         .task { await liveHolen() }
         .sheet(isPresented: $schnitt) { MiniSchnitt(auftrag: a) }
+        .sheet(isPresented: $veroeffentlichen) { VeroeffentlichenAnsicht(auftragID: a.id) }
         .onAppear { if a.fertig && a.bilderAnzahl > 0 { enthuellen = Enthuellt.neu(a.id) } }
         .onChange(of: a.fertig) { _, f in if f && a.bilderAnzahl > 0 { enthuellen = Enthuellt.neu(a.id) } }
         .fullScreenCover(item: Binding(get: { vollbild.map { BildNr(i: $0) } }, set: { vollbild = $0?.i })) { v in
@@ -316,6 +318,8 @@ struct AuftragDetail: View {
             }
             ProjektZuordnen(auftrag: a)                                     // 📁
             if a.fertig && a.hatVideo {
+                Button { veroeffentlichen = true } label: { Label("Veröffentlichen (TikTok, Reels, Shorts …)", systemImage: "paperplane.fill").frame(maxWidth: .infinity) }
+                    .buttonStyle(.borderedProminent).controlSize(.large)
                 Button { schnitt = true } label: { Label("Kürzen & teilen", systemImage: "scissors").frame(maxWidth: .infinity) }
                     .buttonStyle(.bordered).controlSize(.large)
             }
