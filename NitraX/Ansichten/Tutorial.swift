@@ -241,8 +241,10 @@ struct TutorialUebersicht: View {
 @MainActor
 struct WasIstNeu: View {
     @Environment(\.dismiss) private var dismiss
-    static let version = "0.5.27"
+    static let version = "0.5.28"
     static let punkte: [(String, String, String)] = [
+        ("globe", "NitraX auf Englisch", "Ist dein iPhone auf Englisch gestellt, spricht die App Englisch – oder einzeln: iOS-Einstellungen → NitraX → Sprache."),
+        ("checklist", "Helfer-Pläne zuverlässiger", "»Mach ein Bild und daraus ein GIF«: der Helfer plant den nötigen Zwischenschritt (Video) selbst, und Sofort-Ergebnisse wie GIFs zählen als fertig."),
         ("graduationcap.fill", "Einführungen für jeden Workflow", "Erstellen → 🎓 Einführungen: Schritt für Schritt erklärt, mit Beispielen und echtem Testlauf, den du live mitverfolgst."),
         ("hammer.fill", "Die Werkstatt zeigt, was sie tut", "Auf der Startseite siehst du, woran sie gerade arbeitet – z. B. »Regie plant: 4 von 13 Szenen«."),
         ("list.number", "Mehrschritt-Aufträge", "»Erst Song, dann Film, dann …« – dein Helfer arbeitet Schritt für Schritt, meldet jeden Schritt und macht nach Neustarts weiter."),

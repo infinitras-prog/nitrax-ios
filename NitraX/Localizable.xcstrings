@@ -1,0 +1,3476 @@
+{
+  "sourceLanguage": "de",
+  "strings": {
+    "1. NitraX am PC gestartet?  2. PC wach (nicht im Standby)?  3. Gleiches WLAN – unterwegs Tailscale an?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1. Is NitraX running on the PC?  2. Is the PC awake (not in standby)?  3. Same Wi-Fi – on the go, is Tailscale on?"
+          }
+        }
+      }
+    },
+    "10 Minuten vorher erinnern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remind me 10 minutes before"
+          }
+        }
+      }
+    },
+    "16:9 quer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "16:9 landscape"
+          }
+        }
+      }
+    },
+    "9:16 hoch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "9:16 portrait"
+          }
+        }
+      }
+    },
+    "Abbrechen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel"
+          }
+        }
+      }
+    },
+    "Aktives Projekt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Active project"
+          }
+        }
+      }
+    },
+    "Album entfernen (Ergebnisse bleiben)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove album (results stay)"
+          }
+        }
+      }
+    },
+    "Alle abspielen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play all"
+          }
+        }
+      }
+    },
+    "Alle behalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Keep all"
+          }
+        }
+      }
+    },
+    "Alle offline gespeicherten Werke vom iPhone löschen? Am PC bleibt alles erhalten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete all works saved offline from this iPhone? Everything stays on the PC."
+          }
+        }
+      }
+    },
+    "Alles ausgefüllt! Tippe jetzt unten auf »Starten« – danach kannst du live mitverfolgen, was der PC macht.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "All filled in! Now tap »Start« below – then you can follow live what the PC is doing."
+          }
+        }
+      }
+    },
+    "Als Nächstes": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next up"
+          }
+        }
+      }
+    },
+    "Am PC noch einrichten: NitraX → Einstellungen → Handy → iPhone-Push": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still to set up on the PC: NitraX → Settings → Phone → iPhone push"
+          }
+        }
+      }
+    },
+    "Am PC: NitraX AI Studio → Einstellungen → Handy → »Handy-Zugang« an": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the PC: NitraX AI Studio → Settings → Phone → turn on »Phone access«"
+          }
+        }
+      }
+    },
+    "An NitraX": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To NitraX"
+          }
+        }
+      }
+    },
+    "Anlegen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create"
+          }
+        }
+      }
+    },
+    "Anruf": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Call"
+          }
+        }
+      }
+    },
+    "Anrufen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Call"
+          }
+        }
+      }
+    },
+    "Ansicht": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "View"
+          }
+        }
+      }
+    },
+    "App-Symbol": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App icon"
+          }
+        }
+      }
+    },
+    "Art": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Type"
+          }
+        }
+      }
+    },
+    "Audiodatei vom iPhone …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Audio file from iPhone …"
+          }
+        }
+      }
+    },
+    "Auflösen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dissolve"
+          }
+        }
+      }
+    },
+    "Auftrag abbrechen? Bisher Gerechnetes bleibt erhalten.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel this job? What has been rendered so far is kept."
+          }
+        }
+      }
+    },
+    "Auftrag löschen? Die Dateien landen am PC im Papierkorb.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete this job? The files go to the Recycle Bin on the PC."
+          }
+        }
+      }
+    },
+    "Aufträge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jobs"
+          }
+        }
+      }
+    },
+    "Aufwecken aus dem Standby geht vom iPhone aus leider nicht (iOS erlaubt Apps dafür keine Rundsende-Pakete im Heimnetz). Tipp: Am PC Energiesparen → Standby »Nie«, solange du unterwegs arbeiten willst.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waking the PC from standby isn't possible from the iPhone (iOS doesn't allow apps to send broadcast packets on the home network). Tip: on the PC set Power → Sleep to »Never« while you want to work on the go."
+          }
+        }
+      }
+    },
+    "Augen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eyes"
+          }
+        }
+      }
+    },
+    "Aus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Off"
+          }
+        }
+      }
+    },
+    "Aus Zwischenablage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "From clipboard"
+          }
+        }
+      }
+    },
+    "Aus dem Projekt nehmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from project"
+          }
+        }
+      }
+    },
+    "Aus der Galerie entfernen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove from gallery"
+          }
+        }
+      }
+    },
+    "Ausblenden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide"
+          }
+        }
+      }
+    },
+    "Aussehen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance"
+          }
+        }
+      }
+    },
+    "Aussehen (Outfit & Hintergrund)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Appearance (outfit & background)"
+          }
+        }
+      }
+    },
+    "Auswählen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select"
+          }
+        }
+      }
+    },
+    "Automatisch (Mobilfunk)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Automatic (cellular)"
+          }
+        }
+      }
+    },
+    "Beenden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quit"
+          }
+        }
+      }
+    },
+    "Bei fertigen Aufträgen und Nachrichten vom Helfer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "For finished jobs and messages from your companion"
+          }
+        }
+      }
+    },
+    "Beispiel einsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert example"
+          }
+        }
+      }
+    },
+    "Beziehung darf romantisch werden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Relationship may become romantic"
+          }
+        }
+      }
+    },
+    "Bibliothek": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Library"
+          }
+        }
+      }
+    },
+    "Bild wählen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose image"
+          }
+        }
+      }
+    },
+    "Bildmodell": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Image model"
+          }
+        }
+      }
+    },
+    "Bisher passiert": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What happened so far"
+          }
+        }
+      }
+    },
+    "Bleibt liegen, bis du es wieder einreihst – es kommt dann hinten an.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stays parked until you queue it again – it then goes to the back."
+          }
+        }
+      }
+    },
+    "Briefing: was fertig wurde, was läuft": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Briefing: what finished, what's running"
+          }
+        }
+      }
+    },
+    "Chat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chat"
+          }
+        }
+      }
+    },
+    "Dann keine Meldungen und keine Anrufe vom Helfer, fertige Aufträge kommen leise. Anrufe, die du selbst für eine Uhrzeit bestellt hast (»ruf mich um 7 an«), klingeln trotzdem.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No messages and no calls from your companion then; finished jobs arrive silently. Calls you booked for a time yourself (»call me at 7«) still ring."
+          }
+        }
+      }
+    },
+    "Das PC-Programm ist älter als die App – bitte NitraX am PC aktualisieren, dann geht Umziehen auch hier.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PC program is older than the app – please update NitraX on the PC, then changing outfits works here too."
+          }
+        }
+      }
+    },
+    "Das Sprachmodell der App plant die Workflows (Agent, Regie, Autoprompt). Chat-Modelle wählst du im Chat oben rechts, das Modell des Helfers unter »Helfer anpassen«.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app's language model plans the workflows (agent, director, autoprompt). Choose chat models at the top right of the chat, the companion's model under »Customize companion«."
+          }
+        }
+      }
+    },
+    "Datensicherung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Backup"
+          }
+        }
+      }
+    },
+    "Dein Ort bleibt auf dem iPhone – an den PC geht nur »heimgekommen« bzw. »losgefahren«.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your location stays on the iPhone – only »came home« or »left« goes to the PC."
+          }
+        }
+      }
+    },
+    "Dein Studio auf dem iPhone – Videos, Bilder, Musik und Filme starten, Fortschritt sehen, mit dem Agenten und deinem Helfer sprechen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your studio on the iPhone – start videos, images, music and films, watch progress, talk to the agent and your companion."
+          }
+        }
+      }
+    },
+    "Den QR-Code dort mit dieser App scannen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan the QR code there with this app"
+          }
+        }
+      }
+    },
+    "Denkt mit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thinks along"
+          }
+        }
+      }
+    },
+    "Der PC passt Format und Länge an, gleicht die Lautstärke an (-14 LUFS), macht ein Titelbild und schreibt Titel, Beschreibung und Hashtags. Das Original bleibt unverändert.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PC adjusts format and length, normalizes loudness (-14 LUFS), makes a cover image and writes title, description and hashtags. The original stays unchanged."
+          }
+        }
+      }
+    },
+    "Der PC rechnet – du bekommst eine Mitteilung, wenn es fertig ist.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The PC is working – you'll get a notification when it's done."
+          }
+        }
+      }
+    },
+    "Der Scanner ist auf diesem Gerät nicht verfügbar – bitte den Link einfügen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The scanner isn't available on this device – please paste the link."
+          }
+        }
+      }
+    },
+    "Deutsch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "German"
+          }
+        }
+      }
+    },
+    "Dialog (optional) – z. B. Tom: »Schau mal!«": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dialogue (optional) – e.g. Tom: »Look!«"
+          }
+        }
+      }
+    },
+    "Die App nimmt automatisch die erste erreichbare Adresse – zu Hause das WLAN, unterwegs Tailscale.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The app automatically uses the first reachable address – Wi-Fi at home, Tailscale on the go."
+          }
+        }
+      }
+    },
+    "Die Bilder bleiben im Arbeitsspeicher und werden nicht gespeichert. Aussehen, PC-Steuerung und Desktop-Funktionen stellst du am PC ein.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Images stay in memory and are not saved. Appearance, PC control and desktop features are set on the PC."
+          }
+        }
+      }
+    },
+    "Die ausgewählten Ergebnisse kommen hinein.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The selected results go in."
+          }
+        }
+      }
+    },
+    "Echte Emotionsstimme (langsamer)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Real emotional voice (slower)"
+          }
+        }
+      }
+    },
+    "Eigener Text (optional)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your own text (optional)"
+          }
+        }
+      }
+    },
+    "Einen nach hinten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move back one"
+          }
+        }
+      }
+    },
+    "Einen nach vorn": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Move up one"
+          }
+        }
+      }
+    },
+    "Einführungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introductions"
+          }
+        }
+      }
+    },
+    "Einführungen (jeder Workflow mit Testlauf)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Introductions (every workflow with a test run)"
+          }
+        }
+      }
+    },
+    "Einreihen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue"
+          }
+        }
+      }
+    },
+    "Einstellungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Settings"
+          }
+        }
+      }
+    },
+    "Englisch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "English"
+          }
+        }
+      }
+    },
+    "Entsperren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock"
+          }
+        }
+      }
+    },
+    "Entwurf verwerfen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Discard draft"
+          }
+        }
+      }
+    },
+    "Ergebnis": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Result"
+          }
+        }
+      }
+    },
+    "Ergebnis öffnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open result"
+          }
+        }
+      }
+    },
+    "Erst 2 Szenen als Probe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "First 2 scenes as a preview"
+          }
+        }
+      }
+    },
+    "Erstellen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create"
+          }
+        }
+      }
+    },
+    "Es wird aktiv – neue Aufträge landen darin, bis du es wieder abschaltest.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It becomes active – new jobs land in it until you switch it off again."
+          }
+        }
+      }
+    },
+    "Fertig": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "Fertig machen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make it ready"
+          }
+        }
+      }
+    },
+    "Fertige Bilder landen automatisch hier, sobald die App mit dem PC verbunden ist – danach gehen sie auch ohne Verbindung.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finished images appear here automatically once the app is connected to the PC – after that they work offline too."
+          }
+        }
+      }
+    },
+    "Fertige Werke kommentieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Comment on finished works"
+          }
+        }
+      }
+    },
+    "Feste Figuren (optional, bis 4)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fixed characters (optional, up to 4)"
+          }
+        }
+      }
+    },
+    "Figur hinzufügen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add character"
+          }
+        }
+      }
+    },
+    "Film": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Film"
+          }
+        }
+      }
+    },
+    "Film drehen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shoot film"
+          }
+        }
+      }
+    },
+    "Filter": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Filter"
+          }
+        }
+      }
+    },
+    "Format": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format"
+          }
+        }
+      }
+    },
+    "Fortsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume"
+          }
+        }
+      }
+    },
+    "Foto": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Photo"
+          }
+        }
+      }
+    },
+    "Foto verwenden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use photo"
+          }
+        }
+      }
+    },
+    "Freiwillig. Titel und Uhrzeit der nächsten 3 Tage gehen an deinen PC (nur im Arbeitsspeicher), damit sie dich erinnern und Aufträge um Termine herum planen kann.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional. Title and time of the next 3 days go to your PC (memory only), so she can remind you and plan jobs around appointments."
+          }
+        }
+      }
+    },
+    "Frühere Gespräche": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Earlier conversations"
+          }
+        }
+      }
+    },
+    "Galerie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gallery"
+          }
+        }
+      }
+    },
+    "Galerie leeren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear gallery"
+          }
+        }
+      }
+    },
+    "Geladen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loaded"
+          }
+        }
+      }
+    },
+    "Geräte & Schlüssel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devices & key"
+          }
+        }
+      }
+    },
+    "Geräte mit der NitraX-App": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devices with the NitraX app"
+          }
+        }
+      }
+    },
+    "Gesprächsnotiz": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Call notes"
+          }
+        }
+      }
+    },
+    "Gesprächsverlauf": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conversation history"
+          }
+        }
+      }
+    },
+    "Gleiche Eingaben, jedes Mal ein anderer Zufall. Die Rechenzeit vervielfacht sich.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same inputs, a different random seed each time. Render time multiplies."
+          }
+        }
+      }
+    },
+    "Gleiche Einstellungen, neuer Zufall – das Ergebnis wird ähnlich, aber ein Einzelstück.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Same settings, new seed – the result will be similar but one of a kind."
+          }
+        }
+      }
+    },
+    "Grafikkarte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Graphics card"
+          }
+        }
+      }
+    },
+    "Groß": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Large"
+          }
+        }
+      }
+    },
+    "Größe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Size"
+          }
+        }
+      }
+    },
+    "Halten und ziehen zum Umsortieren, nach links wischen zum Löschen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hold and drag to reorder, swipe left to delete."
+          }
+        }
+      }
+    },
+    "Helfer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Companion"
+          }
+        }
+      }
+    },
+    "Helfer anpassen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Customize companion"
+          }
+        }
+      }
+    },
+    "Hier ist mein Zuhause": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This is my home"
+          }
+        }
+      }
+    },
+    "Hier weiterreden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue talking here"
+          }
+        }
+      }
+    },
+    "Hilfe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Help"
+          }
+        }
+      }
+    },
+    "Hinweis": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Note"
+          }
+        }
+      }
+    },
+    "Ihr etwas zeigen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show her something"
+          }
+        }
+      }
+    },
+    "Im Player abspielen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Play in player"
+          }
+        }
+      }
+    },
+    "Immer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Always"
+          }
+        }
+      }
+    },
+    "In Fotos": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "To Photos"
+          }
+        }
+      }
+    },
+    "In Fotos sichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save to Photos"
+          }
+        }
+      }
+    },
+    "Ins Zimmer stellen (AR)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Place in room (AR)"
+          }
+        }
+      }
+    },
+    "Jede Einführung erklärt den Workflow Schritt für Schritt, setzt Beispiele ein und macht einen echten Testlauf – den du live mitverfolgst, bis dein erstes Ergebnis da ist.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each introduction explains the workflow step by step, fills in examples and does a real test run – which you follow live until your first result is there."
+          }
+        }
+      }
+    },
+    "Jeder Workflow Schritt für Schritt – mit echtem Testlauf zum Mitverfolgen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every workflow step by step – with a real test run to follow"
+          }
+        }
+      }
+    },
+    "Jetzt sichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back up now"
+          }
+        }
+      }
+    },
+    "Kamera": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Camera"
+          }
+        }
+      }
+    },
+    "Kategorie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Category"
+          }
+        }
+      }
+    },
+    "Keine Aufträge": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No jobs"
+          }
+        }
+      }
+    },
+    "Klein": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Small"
+          }
+        }
+      }
+    },
+    "Kleinere Modelle antworten schneller, größere klüger. 👁 = kann Bilder sehen, 💭 = denkt vorher nach (langsamer).": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smaller models answer faster, larger ones are smarter. 👁 = can see images, 💭 = thinks first (slower)."
+          }
+        }
+      }
+    },
+    "Kleinere Vorschaubilder, Videos erst beim Antippen, kein Vorladen der Offline-Galerie, Helfer mit 30 statt 60 Bildern pro Sekunde – schont Akku und Datenvolumen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Smaller previews, videos only on tap, no preloading of the offline gallery, companion at 30 instead of 60 frames per second – saves battery and data."
+          }
+        }
+      }
+    },
+    "Klingelt …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ringing …"
+          }
+        }
+      }
+    },
+    "Kurzfilm Szene für Szene planen – Ort, Handlung, Dialog, Kamera, Figuren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plan a short film scene by scene – location, action, dialogue, camera, characters"
+          }
+        }
+      }
+    },
+    "Kürzen & teilen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trim & share"
+          }
+        }
+      }
+    },
+    "Lade Modelle …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading models …"
+          }
+        }
+      }
+    },
+    "Lautstärke": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Volume"
+          }
+        }
+      }
+    },
+    "Leeren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear"
+          }
+        }
+      }
+    },
+    "Leiser": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quieter"
+          }
+        }
+      }
+    },
+    "Letzte Anrufe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent calls"
+          }
+        }
+      }
+    },
+    "Letzte Meldungen vom Handy": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recent messages from the phone"
+          }
+        }
+      }
+    },
+    "Live-Aktivität (Sperrbildschirm & Dynamic Island)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Live Activity (Lock Screen & Dynamic Island)"
+          }
+        }
+      }
+    },
+    "Los geht's": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Let's go"
+          }
+        }
+      }
+    },
+    "Läuft gerade": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Running now"
+          }
+        }
+      }
+    },
+    "Löschen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete"
+          }
+        }
+      }
+    },
+    "Mimik spiegeln": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mirror facial expressions"
+          }
+        }
+      }
+    },
+    "Mit Dialog": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With dialogue"
+          }
+        }
+      }
+    },
+    "Mit Face ID schützen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protect with Face ID"
+          }
+        }
+      }
+    },
+    "Mit Foto sieht die Figur in jeder Szene gleich aus.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "With a photo the character looks the same in every scene."
+          }
+        }
+      }
+    },
+    "Mit Foto starten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start with photo"
+          }
+        }
+      }
+    },
+    "Mit Helfer sprechen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talk to companion"
+          }
+        }
+      }
+    },
+    "Mitteilung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notification"
+          }
+        }
+      }
+    },
+    "Mitteilungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notifications"
+          }
+        }
+      }
+    },
+    "Mitteilungen erlauben": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow notifications"
+          }
+        }
+      }
+    },
+    "Mittel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Medium"
+          }
+        }
+      }
+    },
+    "Modell": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Model"
+          }
+        }
+      }
+    },
+    "NEURAL CREATIVE STUDIO": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NEURAL CREATIVE STUDIO"
+          }
+        }
+      }
+    },
+    "Nach rechts wischen = als Nächstes · nach links = zurückstellen oder abbrechen · »Ordnen« = ziehen. Zeiten sind Schätzungen aus deinen letzten Aufträgen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe right = next up · swipe left = park or cancel · »Arrange« = drag. Times are estimates from your recent jobs."
+          }
+        }
+      }
+    },
+    "Name": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Name"
+          }
+        }
+      }
+    },
+    "Neu aufnehmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Record again"
+          }
+        }
+      }
+    },
+    "Neu laden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reload"
+          }
+        }
+      }
+    },
+    "Neue Aufträge (PC, Handy, Helfer) landen automatisch hier": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New jobs (PC, phone, companion) land here automatically"
+          }
+        }
+      }
+    },
+    "Neue Outfits und Frisuren holst du am PC im NitraX Store (🧍 KI-Helfer). Gespeichert wird wie am PC – sie trägt es überall.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get new outfits and hairstyles on the PC in the NitraX Store (🧍 AI companion). Saved like on the PC – she wears it everywhere."
+          }
+        }
+      }
+    },
+    "Neue Routine": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New routine"
+          }
+        }
+      }
+    },
+    "Neuen Schlüssel erzeugen? Alle anderen Geräte (auch Browser und Android) müssen dann den QR-Code neu scannen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create a new key? All other devices (including browsers and Android) then have to scan the QR code again."
+          }
+        }
+      }
+    },
+    "Neuer Auftrag an den Workflow-Agenten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New job for the workflow agent"
+          }
+        }
+      }
+    },
+    "Neuer Chat": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New chat"
+          }
+        }
+      }
+    },
+    "Neues Album": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New album"
+          }
+        }
+      }
+    },
+    "Neues Album …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New album …"
+          }
+        }
+      }
+    },
+    "Neues Gespräch beginnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start new conversation"
+          }
+        }
+      }
+    },
+    "Neues Projekt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New project"
+          }
+        }
+      }
+    },
+    "Neues Storyboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New storyboard"
+          }
+        }
+      }
+    },
+    "Neueste zuerst": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Newest first"
+          }
+        }
+      }
+    },
+    "Neuestes Werk": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latest work"
+          }
+        }
+      }
+    },
+    "Nicht verbunden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not connected"
+          }
+        }
+      }
+    },
+    "Nichts wartet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing waiting"
+          }
+        }
+      }
+    },
+    "NitraX ist gesperrt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "NitraX is locked"
+          }
+        }
+      }
+    },
+    "Noch keine Gespräche": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No conversations yet"
+          }
+        }
+      }
+    },
+    "Noch keine Projekte. Mehrteilige Aufträge deines Helfers (»erst Song, dann Film …«) bekommen ihre Mappe automatisch – oder lege selbst eine an.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No projects yet. Multi-part jobs from your companion (»first a song, then a film …«) get their folder automatically – or create one yourself."
+          }
+        }
+      }
+    },
+    "Noch keine Routine. Zum Beispiel: werktags um 7:30 ruft dein Helfer an und sagt dir, was über Nacht fertig geworden ist.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No routine yet. For example: on weekdays at 7:30 your companion calls and tells you what finished overnight."
+          }
+        }
+      }
+    },
+    "Noch nicht für Sofort-Push angemeldet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not yet registered for instant push"
+          }
+        }
+      }
+    },
+    "Noch nicht geprüft": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not checked yet"
+          }
+        }
+      }
+    },
+    "Noch nichts in deiner Sammlung. Outfits und Frisuren holst du am PC: NitraX Store → 🧍 KI-Helfer.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing in your collection yet. Get outfits and hairstyles on the PC: NitraX Store → 🧍 AI companion."
+          }
+        }
+      }
+    },
+    "Noch nichts offline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nothing offline yet"
+          }
+        }
+      }
+    },
+    "Nochmal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Again"
+          }
+        }
+      }
+    },
+    "Normal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Normal"
+          }
+        }
+      }
+    },
+    "Notiz speichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save note"
+          }
+        }
+      }
+    },
+    "Nächste Schritte vorschlagen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Suggest next steps"
+          }
+        }
+      }
+    },
+    "OK": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "Oben statt unten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Top instead of bottom"
+          }
+        }
+      }
+    },
+    "Offline-Galerie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Offline gallery"
+          }
+        }
+      }
+    },
+    "Ort (z. B. Strand bei Sonnenuntergang)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location (e.g. beach at sunset)"
+          }
+        }
+      }
+    },
+    "Orts-Routinen ausschalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Turn off location routines"
+          }
+        }
+      }
+    },
+    "PC nicht erreichbar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PC not reachable"
+          }
+        }
+      }
+    },
+    "PC-Verbindung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PC connection"
+          }
+        }
+      }
+    },
+    "Persönlichkeit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Personality"
+          }
+        }
+      }
+    },
+    "Plattform": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Platform"
+          }
+        }
+      }
+    },
+    "Projekt auflösen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dissolve project"
+          }
+        }
+      }
+    },
+    "Projekt auflösen? Die Ergebnisse bleiben erhalten, sie sind dann nur »ohne Projekt«.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dissolve project? The results are kept, they're just »without project« then."
+          }
+        }
+      }
+    },
+    "Projekte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Projects"
+          }
+        }
+      }
+    },
+    "QR-Code scannen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan QR code"
+          }
+        }
+      }
+    },
+    "Redet von selbst": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Talks on her own"
+          }
+        }
+      }
+    },
+    "Regie denkt …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Director is thinking …"
+          }
+        }
+      }
+    },
+    "Routinen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Routines"
+          }
+        }
+      }
+    },
+    "Routinen laufen am PC – auch wenn die App zu ist. Anrufe klingeln auf dem iPhone.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Routines run on the PC – even when the app is closed. Calls ring on the iPhone."
+          }
+        }
+      }
+    },
+    "Ruhezeit": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quiet time"
+          }
+        }
+      }
+    },
+    "Ruhezeiten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quiet times"
+          }
+        }
+      }
+    },
+    "Schließen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Close"
+          }
+        }
+      }
+    },
+    "Schlüssel erneuern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Renew key"
+          }
+        }
+      }
+    },
+    "Schnell erstellen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick create"
+          }
+        }
+      }
+    },
+    "Schritt für Schritt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Step by step"
+          }
+        }
+      }
+    },
+    "Selbsttest": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Self-test"
+          }
+        }
+      }
+    },
+    "Sichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
+    "Sie kennt meine Termine": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "She knows my appointments"
+          }
+        }
+      }
+    },
+    "Sieht mit (Kamera, Bilder)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sees along (camera, images)"
+          }
+        }
+      }
+    },
+    "Sortierung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sort order"
+          }
+        }
+      }
+    },
+    "Speichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save"
+          }
+        }
+      }
+    },
+    "Sprache für Text & Hashtags": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language for text & hashtags"
+          }
+        }
+      }
+    },
+    "Sprachmodell der App": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App language model"
+          }
+        }
+      }
+    },
+    "Sprachmodelle": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Language models"
+          }
+        }
+      }
+    },
+    "Sprechen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speak"
+          }
+        }
+      }
+    },
+    "Spricht laut": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speaks aloud"
+          }
+        }
+      }
+    },
+    "Standard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Default"
+          }
+        }
+      }
+    },
+    "Standard der App": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App default"
+          }
+        }
+      }
+    },
+    "Starte NitraX AI Studio am PC.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start NitraX AI Studio on the PC."
+          }
+        }
+      }
+    },
+    "Starten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Start"
+          }
+        }
+      }
+    },
+    "Stil (optional, z. B. Pixar, Noir, Anime)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Style (optional, e.g. Pixar, noir, anime)"
+          }
+        }
+      }
+    },
+    "Stimme": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Voice"
+          }
+        }
+      }
+    },
+    "Stopp": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stop"
+          }
+        }
+      }
+    },
+    "Storyboard": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storyboard"
+          }
+        }
+      }
+    },
+    "Storyboard-Editor": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storyboard editor"
+          }
+        }
+      }
+    },
+    "Storyboards": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Storyboards"
+          }
+        }
+      }
+    },
+    "Studio": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Studio"
+          }
+        }
+      }
+    },
+    "Stumm": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mute"
+          }
+        }
+      }
+    },
+    "Systemzustand": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "System status"
+          }
+        }
+      }
+    },
+    "Szene hinzufügen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add scene"
+          }
+        }
+      }
+    },
+    "Teilen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share"
+          }
+        }
+      }
+    },
+    "Teilen / Sichern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Share / Save"
+          }
+        }
+      }
+    },
+    "Test-Push senden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Send test push"
+          }
+        }
+      }
+    },
+    "Text + Hashtags kopieren": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy text + hashtags"
+          }
+        }
+      }
+    },
+    "Text einblenden (optional)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show text (optional)"
+          }
+        }
+      }
+    },
+    "Tippe an, was du behalten willst · lange drücken = groß ansehen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap what you want to keep · long press = view large"
+          }
+        }
+      }
+    },
+    "Tippen und losreden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tap and start talking"
+          }
+        }
+      }
+    },
+    "Titel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Title"
+          }
+        }
+      }
+    },
+    "Ton": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sound"
+          }
+        }
+      }
+    },
+    "Trennen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        }
+      }
+    },
+    "Umbenennen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rename"
+          }
+        }
+      }
+    },
+    "Unser Tagebuch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Our diary"
+          }
+        }
+      }
+    },
+    "Unter »Erstellen« legst du los.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Get started under »Create«."
+          }
+        }
+      }
+    },
+    "Untertitel aus dem Ton einbrennen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burn in subtitles from the audio"
+          }
+        }
+      }
+    },
+    "Untertitel lassen sich nicht ausblenden – NitraX rechnet sie fest ins Bild.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Subtitles can't be hidden – NitraX renders them into the picture."
+          }
+        }
+      }
+    },
+    "Unterwegs: Tailscale auf PC und iPhone – dann klappt es überall": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "On the go: Tailscale on PC and iPhone – then it works everywhere"
+          }
+        }
+      }
+    },
+    "Verbinden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect"
+          }
+        }
+      }
+    },
+    "Verbindung prüfen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check connection"
+          }
+        }
+      }
+    },
+    "Verbindung trennen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect"
+          }
+        }
+      }
+    },
+    "Verbindung zum PC trennen? Zum Wiederverbinden den QR-Code neu scannen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Disconnect from the PC? To reconnect, scan the QR code again."
+          }
+        }
+      }
+    },
+    "Vergleichen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Compare"
+          }
+        }
+      }
+    },
+    "Verhalten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Behavior"
+          }
+        }
+      }
+    },
+    "Verlauf": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "History"
+          }
+        }
+      }
+    },
+    "Veröffentlichen (TikTok, Reels, Shorts …)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Publish (TikTok, Reels, Shorts …)"
+          }
+        }
+      }
+    },
+    "Video offline": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video offline"
+          }
+        }
+      }
+    },
+    "Videoanruf": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Video call"
+          }
+        }
+      }
+    },
+    "Vorher / Nachher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Before / After"
+          }
+        }
+      }
+    },
+    "Vorheriges Aussehen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Previous look"
+          }
+        }
+      }
+    },
+    "Vorlage verwenden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use template"
+          }
+        }
+      }
+    },
+    "Vorlagen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Templates"
+          }
+        }
+      }
+    },
+    "Vorlieben, Eigenheiten, Hintergrund …": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preferences, quirks, background …"
+          }
+        }
+      }
+    },
+    "Vorschau: was würde sie jetzt sagen?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Preview: what would she say now?"
+          }
+        }
+      }
+    },
+    "Wann": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "When"
+          }
+        }
+      }
+    },
+    "Wartende abbrechen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cancel waiting jobs"
+          }
+        }
+      }
+    },
+    "Warteschlange": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue"
+          }
+        }
+      }
+    },
+    "Warteschlange fortsetzen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resume queue"
+          }
+        }
+      }
+    },
+    "Was ist neu": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What's new"
+          }
+        }
+      }
+    },
+    "Was passiert?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What happens?"
+          }
+        }
+      }
+    },
+    "Was soll daraus werden?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What should it become?"
+          }
+        }
+      }
+    },
+    "Was soll passieren?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What should happen?"
+          }
+        }
+      }
+    },
+    "Weitere Adresse scannen (z. B. Tailscale)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Scan another address (e.g. Tailscale)"
+          }
+        }
+      }
+    },
+    "Weitermachen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        }
+      }
+    },
+    "Wer ist sie?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Who is she?"
+          }
+        }
+      }
+    },
+    "Werkstatt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Workshop"
+          }
+        }
+      }
+    },
+    "Wie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How"
+          }
+        }
+      }
+    },
+    "Wieder einreihen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Queue again"
+          }
+        }
+      }
+    },
+    "Wischen zum Sperren. Browser und die Android-App erscheinen hier nicht – die sperrst du mit »Schlüssel erneuern«.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Swipe to block. Browsers and the Android app don't appear here – block those with »Renew key«."
+          }
+        }
+      }
+    },
+    "Worum geht es in diesem Projekt?": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "What is this project about?"
+          }
+        }
+      }
+    },
+    "Z. B. wenn ein Handy verloren ging: Danach kommt nur noch dieses iPhone rein – alle anderen müssen den QR-Code am PC neu scannen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "E.g. if a phone got lost: afterwards only this iPhone gets in – all others must scan the QR code on the PC again."
+          }
+        }
+      }
+    },
+    "Zeichnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draw"
+          }
+        }
+      }
+    },
+    "Ziehen zum Verschieben · zwei Finger zum Zoomen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Drag to move · two fingers to zoom"
+          }
+        }
+      }
+    },
+    "Zufallswiedergabe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Shuffle"
+          }
+        }
+      }
+    },
+    "Zuhause neu festlegen (hier)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set home here"
+          }
+        }
+      }
+    },
+    "Zuletzt fertig": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Recently finished"
+          }
+        }
+      }
+    },
+    "Zurück": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
+    "Zurückstellen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Park"
+          }
+        }
+      }
+    },
+    "Zuschneiden": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crop"
+          }
+        }
+      }
+    },
+    "aktiv": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "active"
+          }
+        }
+      }
+    },
+    "aktuell": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "current"
+          }
+        }
+      }
+    },
+    "automatisch": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "automatic"
+          }
+        }
+      }
+    },
+    "fertig": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "done"
+          }
+        }
+      }
+    },
+    "gesprächig": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "chatty"
+          }
+        }
+      }
+    },
+    "iOS-Einstellungen öffnen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open iOS Settings"
+          }
+        }
+      }
+    },
+    "iPhone": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone"
+          }
+        }
+      }
+    },
+    "in Ordnung": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "OK"
+          }
+        }
+      }
+    },
+    "live": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "live"
+          }
+        }
+      }
+    },
+    "nachher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "after"
+          }
+        }
+      }
+    },
+    "normal": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "normal"
+          }
+        }
+      }
+    },
+    "oder Link einfügen: http://…:8296/?k=…": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "or paste link: http://…:8296/?k=…"
+          }
+        }
+      }
+    },
+    "seit ": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "since "
+          }
+        }
+      }
+    },
+    "spricht nie": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "never speaks"
+          }
+        }
+      }
+    },
+    "still": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "quiet"
+          }
+        }
+      }
+    },
+    "vorher": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "before"
+          }
+        }
+      }
+    },
+    "z. B. Sommer 2026 ☀️": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. Summer 2026 ☀️"
+          }
+        }
+      }
+    },
+    "z. B. sie dreht sich lachend zur Kamera, Wind im Haar": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "e.g. she turns to the camera laughing, wind in her hair"
+          }
+        }
+      }
+    },
+    "Älteste zuerst": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oldest first"
+          }
+        }
+      }
+    },
+    "Über mich": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About me"
+          }
+        }
+      }
+    },
+    "Übernehmen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apply"
+          }
+        }
+      }
+    },
+    "Überraschungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Surprises"
+          }
+        }
+      }
+    },
+    "⏸ Zurückgestellt": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⏸ Parked"
+          }
+        }
+      }
+    },
+    "▶ Video daraus machen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "▶ Make a video from it"
+          }
+        }
+      }
+    },
+    "◧ Bild nach Anweisung ändern": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "◧ Change image by instruction"
+          }
+        }
+      }
+    },
+    "☀️ Morgen-Briefing (werktags 7:30, Anruf)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "☀️ Morning briefing (weekdays 7:30, call)"
+          }
+        }
+      }
+    },
+    "⚡ Ihre Stimme sofort abspielen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "⚡ Play her voice instantly"
+          }
+        }
+      }
+    },
+    "✨ Das will ich auch (neue Variante)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✨ I want that too (new variant)"
+          }
+        }
+      }
+    },
+    "✨ Original": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "✨ Original"
+          }
+        }
+      }
+    },
+    "❤ Deine Favoriten als Vorlage": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "❤ Your favorites as templates"
+          }
+        }
+      }
+    },
+    "🌈 Neon": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🌈 Neon"
+          }
+        }
+      }
+    },
+    "🌑 Dunkel": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🌑 Dark"
+          }
+        }
+      }
+    },
+    "🌙 Gute-Nacht (täglich 22:30)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🌙 Good night (daily 22:30)"
+          }
+        }
+      }
+    },
+    "🌙 Ruhezeiten": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🌙 Quiet times"
+          }
+        }
+      }
+    },
+    "🎓 Einführungen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🎓 Introductions"
+          }
+        }
+      }
+    },
+    "🎨 Hintergrund": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🎨 Background"
+          }
+        }
+      }
+    },
+    "🎲 Szenen von der KI vorschlagen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🎲 Let the AI suggest scenes"
+          }
+        }
+      }
+    },
+    "🏠 Begrüßen, wenn ich heimkomme": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🏠 Greet me when I come home"
+          }
+        }
+      }
+    },
+    "👁 PC-Webcam als Augen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "👁 PC webcam as eyes"
+          }
+        }
+      }
+    },
+    "👁 iPhone-Kamera als Augen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "👁 iPhone camera as eyes"
+          }
+        }
+      }
+    },
+    "👍/👎 merkt sich NitraX – ähnliche Wünsche bekommen die Einstellungen, die dir gefallen.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "👍/👎 NitraX remembers – similar requests get the settings you liked."
+          }
+        }
+      }
+    },
+    "💧 Wasser trinken (täglich 15:00)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "💧 Drink water (daily 15:00)"
+          }
+        }
+      }
+    },
+    "📁 Projekte": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📁 Projects"
+          }
+        }
+      }
+    },
+    "📅 Kalender": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📅 Calendar"
+          }
+        }
+      }
+    },
+    "📊 Eure Woche": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📊 Your week"
+          }
+        }
+      }
+    },
+    "📊 Wochenrückblick (Sonntag 18:00, Anruf)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📊 Weekly review (Sunday 18:00, call)"
+          }
+        }
+      }
+    },
+    "📍 Orts-Routinen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📍 Location routines"
+          }
+        }
+      }
+    },
+    "📝 Notiz": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📝 Note"
+          }
+        }
+      }
+    },
+    "📞 Anrufe": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📞 Calls"
+          }
+        }
+      }
+    },
+    "📤 Veröffentlichen": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📤 Publish"
+          }
+        }
+      }
+    },
+    "📶 Sparmodus": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📶 Data saver"
+          }
+        }
+      }
+    },
+    "📸 Unser Fotoalbum": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "📸 Our photo album"
+          }
+        }
+      }
+    },
+    "🔇 Echo-Unterdrückung (experimentell)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🔇 Echo cancellation (experimental)"
+          }
+        }
+      }
+    },
+    "🔔 Klang, wenn ein Auftrag fertig wird": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🔔 Sound when a job finishes"
+          }
+        }
+      }
+    },
+    "🚗 Stand sagen, wenn ich losfahre": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🚗 Tell me the status when I leave"
+          }
+        }
+      }
+    },
+    "🛠 Die Werkstatt arbeitet": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🛠 The workshop is working"
+          }
+        }
+      }
+    },
+    "🪄 Prompt-Helfer": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "🪄 Prompt helper"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}
