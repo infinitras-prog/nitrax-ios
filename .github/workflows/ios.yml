@@ -19,6 +19,10 @@ on:
         description: "Zu TestFlight hochladen"
         type: boolean
         default: true
+      mac:
+        description: "Mac-Typ (bei GitHub-Engpass weicht das Bau-Werkzeug aus: macos-26, macos-15, macos-15-intel)"
+        type: string
+        default: macos-26
 
 # Nur EIN Mac-Auftrag je Version (09.11.2026: GitHub hatte stundenlang keine freien Macs – vorher liefen Prüfen beim
 # Hochladen, Prüfen beim Start und TestFlight nacheinander, jeder wartete neu auf einen Mac). TestFlight kompiliert selbst.
@@ -61,7 +65,7 @@ jobs:
   testflight:
     name: TestFlight
     if: github.event_name == 'workflow_dispatch' && inputs.testflight
-    runs-on: macos-26
+    runs-on: ${{ inputs.mac || 'macos-26' }}
     timeout-minutes: 60
     env:
       DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
@@ -80,6 +84,11 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
+      - name: iOS-SDK prüfen (mindestens 26, sonst lehnt Apple ab)
+        run: |
+          v=$(xcrun --sdk iphoneos --show-sdk-version | cut -d. -f1)
+          echo "iOS-SDK $(xcrun --sdk iphoneos --show-sdk-version) auf $(sw_vers -productVersion) ($(uname -m))"
+          if [ "$v" -lt 26 ]; then echo "::error::Auf diesem Mac-Typ gibt es kein iOS-26-SDK"; exit 1; fi
       - name: XcodeGen installieren
         run: brew install xcodegen
       - name: Projekt erzeugen
