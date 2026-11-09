@@ -185,6 +185,8 @@ final class Studio: ObservableObject {
 
     func anhalten() { takt?.cancel(); takt = nil }
 
+    private var vorratGeprueft = false
+
     func aktualisieren() async {
         guard let c = client else { return }
         do {
@@ -197,6 +199,7 @@ final class Studio: ObservableObject {
             widgetAuffrischen(s)
             LiveAktivitaeten.abgleichen(s, client: c)
             await LokaleAnrufe.abgleichen(c)                                   // 📞 geplante Anrufe als Klingel-Alarm
+            if !vorratGeprueft { vorratGeprueft = true; Task { await Stimmvorrat.auffuellen(c) } }   // 👋 Begrüßungen in ihrer Stimme
             if Date().timeIntervalSince(helferZeit) > 60 {           // 🧍 Stimmungs-Widget
                 helferZeit = Date()
                 if let h = try? await c.get("/api/begleiter/statistik", JSONWert.self) {

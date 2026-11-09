@@ -16,6 +16,11 @@ final class AnrufDienst: NSObject, ObservableObject {
     @Published private(set) var stumm = false
     @Published private(set) var seit: Date?
     @Published private(set) var anrufer = "Dein Helfer"
+    /// 📞 Du rufst an: es klingelt (Freizeichen), solange der PC Stimme + Sprachmodell aufweckt – sie hebt ab, wenn alles bereit ist
+    @Published private(set) var verbindet = false
+    private var freizeichen: AVAudioPlayer?
+    private weak var anbieterRef: CXProvider?
+    private var ausgehend: UUID?
     /// 🎙 Anzeige im Anrufbildschirm: dein Mikrofonpegel (0…1), die letzten Werte als Welle, spricht gerade der Helfer
     @Published private(set) var pegel: Float = 0
     @Published private(set) var welle: [Float] = Array(repeating: 0, count: 48)
@@ -196,10 +201,12 @@ extension AnrufDienst: CXProviderDelegate {
             provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: Date())
             self.lautsprecher = false
             self.stumm = false
-            self.seit = Date()
+            self.seit = nil
+            self.verbindet = true                                  // es klingelt – abheben, sobald der PC bereit ist (didActivate)
+            self.ausgehend = action.callUUID
+            self.anbieterRef = provider
             self.imGespraech = true
             action.fulfill()
-            provider.reportOutgoingCall(with: action.callUUID, connectedAt: Date())     // sie »hebt sofort ab«
         }
     }
 
@@ -207,6 +214,9 @@ extension AnrufDienst: CXProviderDelegate {
         Task { @MainActor in
             self.gespraech?.beenden()
             self.gespraech = nil
+            self.freizeichen?.stop(); self.freizeichen = nil
+            self.verbindet = false
+            self.ausgehend = nil
             self.anzeigeTakt?.invalidate()
             self.anzeigeTakt = nil
             self.pegel = 0
@@ -224,6 +234,27 @@ extension AnrufDienst: CXProviderDelegate {
     nonisolated func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         Task { @MainActor in
             guard let a = self.aktiv, let v = Verbindung.laden() else { return }
+            if self.verbindet {
+                // 🔔 Freizeichen, während der PC aufwacht (Stimme + Sprachmodell laden) – höchstens 40 s, dann hebt sie trotzdem ab
+                if let u = Bundle.main.url(forResource: "freizeichen", withExtension: "wav"), let p = try? AVAudioPlayer(contentsOf: u) {
+                    p.numberOfLoops = -1; p.volume = 0.7; p.play(); self.freizeichen = p
+                }
+                let c = NXClient(v, zeitlimit: 45)
+                var vor: [String: Any] = ["sprache": "de", "geraet": true]
+                if let st = Gemeinsam.defaults.string(forKey: "helfer_stimme") { vor["stimme"] = st }
+                if let m = Gemeinsam.defaults.string(forKey: "helfer_modell") { vor["modell"] = m }
+                let start = Date()
+                _ = try? await c.post("/api/anruf/vorbereiten", vor, zeit: 40)
+                // mindestens einmal klingeln lassen (wirkt echter), dann abheben
+                let rest = 2.2 - Date().timeIntervalSince(start)
+                if rest > 0 { try? await Task.sleep(for: .seconds(rest)) }
+                self.freizeichen?.stop(); self.freizeichen = nil
+                guard self.verbindet, self.aktiv?.uuid == a.uuid else { return }          // inzwischen aufgelegt
+                self.verbindet = false
+                self.seit = Date()
+                if let id = self.ausgehend { self.anbieterRef?.reportOutgoingCall(with: id, connectedAt: Date()) }
+                self.ausgehend = nil
+            }
             if let alt = self.gespraech { alt.beenden(); self.gespraech = nil }          // nie ein altes Gespräch weiterlaufen lassen
             let g = AnrufGespraech(client: NXClient(v, zeitlimit: 60), begruessung: a.text)
             g.aufgelegt = { [weak self] in self?.auflegen() }

@@ -63,6 +63,10 @@ struct AnrufAnsicht: View {
                 .onAppear { withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { puls = true } }
                 }
                 Text(dienst.anrufer).font(.title.bold()).shadow(radius: dienst.video ? 6 : 0)
+                if dienst.verbindet {
+                    Text("Klingelt …").font(.title3).foregroundStyle(.secondary)
+                        .phaseAnimator([0.45, 1.0]) { t, o in t.opacity(o) } animation: { _ in .easeInOut(duration: 0.8) }
+                }
                 if let seit = dienst.seit {
                     TimelineView(.periodic(from: .now, by: 1)) { t in
                         let s = Int(t.date.timeIntervalSince(seit))
