@@ -130,6 +130,14 @@ struct WorkflowFormular: View {
         .navigationTitle(workflow.name)
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { vorbelegen() }
+        .onChange(of: werte) { _, w in entwurfSichern(w) }
+        .toolbar {
+            if entwurfDa {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { entwurfVerwerfen() } label: { Label("Entwurf verwerfen", systemImage: "arrow.counterclockwise") }
+                }
+            }
+        }
         .scrollDismissesKeyboard(.interactively)
     }
 
@@ -144,7 +152,31 @@ struct WorkflowFormular: View {
         return "Bitte warten – PC plant den Auftrag (KI) … \(sek) s"
     }
 
+    /// 📝 Entwurf: alles, was du eingegeben hast (auch Texte und Medien), bleibt – auch wenn die App beendet wird
+    @State private var entwurfDa = false
+    private var entwurfSchluessel: String { "entwurf-\(workflow.id)" }
+
+    private func entwurfSichern(_ w: [String: JSONWert]) {
+        guard vorbelegung.isEmpty else { return }
+        if w.values.allSatisfy({ $0.istLeer }) { Gemeinsam.defaults.removeObject(forKey: entwurfSchluessel); return }
+        if let d = try? JSONEncoder().encode(w) { Gemeinsam.defaults.set(d, forKey: entwurfSchluessel) }
+    }
+
+    private func entwurfVerwerfen() {
+        Gemeinsam.defaults.removeObject(forKey: entwurfSchluessel)
+        entwurfDa = false
+        werte = [:]
+        vorbelegen()
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
     private func vorbelegen() {
+        if vorbelegung.isEmpty, werte.isEmpty, let d = Gemeinsam.defaults.data(forKey: entwurfSchluessel),
+           let w = try? JSONDecoder().decode([String: JSONWert].self, from: d), !w.isEmpty {
+            werte = w
+            entwurfDa = true
+            return
+        }
         let gemerkt = Gemeinsam.defaults.dictionary(forKey: "formular-\(workflow.id)") as? [String: Data] ?? [:]
         for f in workflow.felder where werte[f.name] == nil {
             if let d = gemerkt[f.name], let w = try? JSONDecoder().decode(JSONWert.self, from: d),
@@ -180,6 +212,7 @@ struct WorkflowFormular: View {
             for (k, v) in werte { felder[k] = v.alsAny }
             let r = try await c.post("/api/handy/start", ["wf": workflow.id, "felder": felder], zeit: 900)
             merken()
+            Gemeinsam.defaults.removeObject(forKey: entwurfSchluessel)          // gestartet -> Entwurf erledigt
             let text = r["meldung"]?.text?.components(separatedBy: "\n").first ?? "Gestartet"
             studio.meldung = "✓ " + String(text.prefix(120))
             await studio.aktualisieren()

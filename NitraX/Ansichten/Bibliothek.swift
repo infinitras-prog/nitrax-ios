@@ -29,6 +29,8 @@ struct BibliothekAnsicht: View {
     @State private var waehlen = false
     @State private var loeschFrage = false
     @State private var loescht = false
+    @State private var teilen: [URL] = []
+    @State private var arbeitet: String?                 // »Lädt 3/7 …«
 
     private var art: Art { Art(rawValue: artRoh) ?? .alle }
 
@@ -94,6 +96,9 @@ struct BibliothekAnsicht: View {
             .padding(.bottom, waehlen ? 90 : 20)
         }
         .overlay(alignment: .bottom) { if waehlen { auswahlLeiste } }
+        .sheet(isPresented: Binding(get: { !teilen.isEmpty }, set: { if !$0 { teilen = [] } })) {
+            TeilenBlatt(dateien: teilen).presentationDetents([.medium, .large])
+        }
         .animation(.spring(duration: 0.3), value: waehlen)
         .confirmationDialog("\(auswahl.count) \(auswahl.count == 1 ? "Ergebnis" : "Ergebnisse") löschen? Die Dateien landen am PC im Papierkorb.",
                             isPresented: $loeschFrage, titleVisibility: .visible) {
@@ -186,8 +191,14 @@ struct BibliothekAnsicht: View {
                 auswahl = auswahl.count == eintraege.count ? [] : Set(eintraege.map(\.id))
             }
             Spacer()
-            Text("\(auswahl.count) ausgewählt").font(.subheadline.weight(.semibold))
+            if let arbeitet { Text(arbeitet).font(.caption.monospacedDigit()) }
+            else { Text("\(auswahl.count) ausgewählt").font(.subheadline.weight(.semibold)) }
             Spacer()
+            // 📤 alle markierten teilen · ⬇ in Fotos sichern
+            Button { Task { await holenAlle(sichern: false) } } label: { Image(systemName: "square.and.arrow.up") }
+                .disabled(auswahl.isEmpty || arbeitet != nil)
+            Button { Task { await holenAlle(sichern: true) } } label: { Image(systemName: "square.and.arrow.down") }
+                .disabled(auswahl.isEmpty || arbeitet != nil)
             Button(role: .destructive) { loeschFrage = true } label: {
                 if loescht { ProgressView() } else { Label("Löschen", systemImage: "trash").labelStyle(.titleAndIcon) }
             }
@@ -215,6 +226,40 @@ struct BibliothekAnsicht: View {
         auswahl = []
         waehlen = false
         await studio.aktualisieren()
+    }
+
+    /// Datei eines Ergebnisses (Video, sonst Bilder, sonst Ton)
+    private func dateien(_ a: Auftrag) -> [(String, String, Bool)] {
+        if a.hatVideo { return [("/api/video/\(a.id)", "NitraX-\(a.id).mp4", true)] }
+        if a.bilderAnzahl > 0 { return (0..<a.bilderAnzahl).map { ("/api/img/file/\(a.id)/\($0)", "NitraX-\(a.id)-\($0 + 1).png", false) } }
+        if a.songInput != nil { return [("/api/flac/\(a.id)", "NitraX-\(a.id).flac", false)] }
+        return []
+    }
+
+    private func holenAlle(sichern: Bool) async {
+        guard let c = studio.client else { return }
+        let liste = eintraege.filter { auswahl.contains($0.id) }.flatMap(dateien)
+        guard !liste.isEmpty else { return }
+        var fertig: [URL] = [], fehler = 0
+        for (i, d) in liste.enumerated() {
+            arbeitet = "\(sichern ? "Sichert" : "Lädt") \(i + 1)/\(liste.count) …"
+            do {
+                let u = try await Herunterladen.datei(c, pfad: d.0, name: d.1)
+                if sichern {
+                    if d.1.hasSuffix(".flac") { fehler += 1; continue }          // Ton kann nicht in die Fotos
+                    try await Herunterladen.inFotos(u, video: d.2)
+                }
+                fertig.append(u)
+            } catch { fehler += 1 }
+        }
+        arbeitet = nil
+        UINotificationFeedbackGenerator().notificationOccurred(fehler == 0 ? .success : .warning)
+        if sichern {
+            studio.meldung = "⬇ \(fertig.count) in Fotos gesichert" + (fehler > 0 ? " · \(fehler) nicht möglich" : "")
+            auswahl = []; waehlen = false
+        } else {
+            teilen = fertig
+        }
     }
 
     private func favorit(_ a: Auftrag) async {

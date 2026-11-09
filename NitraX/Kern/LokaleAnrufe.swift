@@ -34,8 +34,15 @@ enum LokaleAnrufe {
             guard let t = a["t"]?.zahl else { continue }
             let von = a["von"]?.text ?? "Dein Helfer", text = a["text"]?.text ?? ""
             // dreimal klingeln (wie ein Anruf, der nicht aufhört): sofort, nach 28 s, nach 56 s
+            let erledigt = Set(Gemeinsam.defaults.stringArray(forKey: "anrufe_erledigt") ?? [])
             for (i, versatz) in [0.0, 28, 56].enumerated() {
-                let wann = t + versatz - Date().timeIntervalSince1970
+                var wann = t + versatz - Date().timeIntervalSince1970
+                // gerade fällig (z. B. »Auftrag fertig«), aber erst jetzt abgeholt -> sofort klingeln (einmal)
+                if i == 0, wann <= 0.5, wann > -90, !erledigt.contains("\(Int(t))") {
+                    wann = 1
+                    var e = Array(erledigt); e.append("\(Int(t))")              // nur einmal (sonst klingelt es bei jedem Abgleich neu)
+                    Gemeinsam.defaults.set(Array(e.suffix(50)), forKey: "anrufe_erledigt")
+                }
                 guard wann > 0.5 else { continue }
                 let id = "\(kennung)\(Int(t))-\(i)"
                 soll.insert(id)
@@ -58,6 +65,8 @@ enum LokaleAnrufe {
 
     /// alle Klingel-Alarme dieses Anrufs weg (angenommen / abgelehnt)
     static func beenden(_ t: Int) {
+        var e = Gemeinsam.defaults.stringArray(forKey: "anrufe_erledigt") ?? []
+        e.append("\(t)"); Gemeinsam.defaults.set(Array(e.suffix(50)), forKey: "anrufe_erledigt")
         let zentrum = UNUserNotificationCenter.current()
         let ids = (0..<3).map { "\(kennung)\(t)-\($0)" }
         zentrum.removePendingNotificationRequests(withIdentifiers: ids)

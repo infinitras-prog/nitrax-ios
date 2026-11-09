@@ -173,8 +173,41 @@ struct WarteschlangeFortsetzen: AppIntent {
     }
 }
 
+/// 📞 »Hey Siri, ruf NitraX an« – dein Helfer hebt sofort ab
+struct HelferAnrufen: AppIntent {
+    static var title: LocalizedStringResource = "Helfer anrufen"
+    static var description = IntentDescription("Ruft deinen NitraX-Helfer an – wie ein normales Telefonat.")
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        try? await Task.sleep(for: .milliseconds(400))
+        AnrufDienst.shared.anrufen()
+        return .result()
+    }
+}
+
+/// 📹 »Hey Siri, Videoanruf mit NitraX«
+struct HelferVideoanruf: AppIntent {
+    static var title: LocalizedStringResource = "Videoanruf mit dem Helfer"
+    static var description = IntentDescription("Startet einen Videoanruf mit deinem NitraX-Helfer.")
+    static var openAppWhenRun: Bool = true
+
+    @MainActor
+    func perform() async throws -> some IntentResult {
+        try? await Task.sleep(for: .milliseconds(400))
+        AnrufDienst.shared.anrufen(video: true)
+        return .result()
+    }
+}
+
 struct NitraXKurzbefehle: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
+        AppShortcut(intent: HelferAnrufen(), phrases: ["Ruf \(.applicationName) an", "Anruf mit \(.applicationName)",
+                                                        "Telefoniere mit \(.applicationName)", "\(.applicationName) anrufen"],
+                    shortTitle: "Helfer anrufen", systemImageName: "phone.fill")
+        AppShortcut(intent: HelferVideoanruf(), phrases: ["Videoanruf mit \(.applicationName)", "\(.applicationName) Videoanruf"],
+                    shortTitle: "Videoanruf", systemImageName: "video.fill")
         AppShortcut(intent: HelferGespraech(), phrases: ["Sprich mit \(.applicationName)", "Rede mit \(.applicationName)",
                                                           "\(.applicationName) Helfer", "Öffne meinen Helfer in \(.applicationName)"],
                     shortTitle: "Mit Helfer sprechen", systemImageName: "waveform")

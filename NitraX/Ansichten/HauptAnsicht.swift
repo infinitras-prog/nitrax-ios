@@ -117,11 +117,19 @@ struct StudioAnsicht: View {
                 if studio.erreichbar {
                     Text(gpuText).font(.caption).foregroundStyle(.secondary)
                 } else {
-                    Text("NitraX am PC starten · Handy-Zugang in den Einstellungen an · gleiches WLAN oder Tailscale")
+                    Text("1. NitraX am PC gestartet?  2. PC wach (nicht im Standby)?  3. Gleiches WLAN – unterwegs Tailscale an?")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Spacer()
+            if !studio.erreichbar {
+                // 🔄 sofort neu suchen (WLAN-Adresse und Tailscale)
+                Button {
+                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                    Task { _ = await studio.client?.basisFinden(); await studio.aktualisieren() }
+                } label: { Image(systemName: "arrow.clockwise").font(.headline).padding(10).background(Farbe.karte, in: Circle()) }
+                .buttonStyle(.plain)
+            }
         }
         .karte()
     }

@@ -114,6 +114,7 @@ struct AuftragZeile: View {
             ZStack {
                 NXBild(url: studio.vorschauURL(a))
                 if studio.vorschauURL(a) == nil { Image(systemName: a.symbol).foregroundStyle(Farbe.akzent) }
+                if a.laeuft { LiveZwischenbild(auftrag: a.id) }          // 🎞 was gerade gerechnet wird
             }
             .frame(width: 52, height: 52)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -378,5 +379,32 @@ struct AuftragDetail: View {
         defer { laedt = false }
         do { fertig(try await Herunterladen.datei(c, pfad: pfad, name: name)) }
         catch { studio.meldung = error.localizedDescription }
+    }
+}
+
+
+/// 🎞 Zwischenbild eines laufenden Auftrags (alle 3 s neu), blendet weich über das Vorschaubild
+@MainActor
+struct LiveZwischenbild: View {
+    @EnvironmentObject private var studio: Studio
+    let auftrag: String
+    @State private var bild: UIImage?
+
+    var body: some View {
+        ZStack {
+            if let bild { Image(uiImage: bild).resizable().scaledToFill().transition(.opacity) }
+        }
+        .animation(.easeInOut(duration: 0.4), value: bild)
+        .task(id: auftrag) {
+            while !Task.isCancelled {
+                if let c = studio.client, let url = c.url("/api/jobs/\(auftrag)/vorschau") {
+                    var r = URLRequest(url: url)
+                    r.timeoutInterval = 6
+                    for (k, v) in c.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
+                    if let (d, a) = try? await URLSession.shared.data(for: r), (a as? HTTPURLResponse)?.statusCode == 200, let b = UIImage(data: d) { bild = b }
+                }
+                try? await Task.sleep(for: .seconds(3))
+            }
+        }
     }
 }

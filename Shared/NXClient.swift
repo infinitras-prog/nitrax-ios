@@ -13,6 +13,11 @@ enum NXFehler: LocalizedError {
         case .keineVerbindung: return "Dein PC ist nicht erreichbar. Läuft NitraX AI Studio und ist der Handy-Zugang an?"
         case .server(let code, let text):
             if code == 403 { return text.isEmpty ? "Zugang verweigert – bitte den QR-Code neu scannen." : text }
+            // 💬 verständlich statt Technik
+            if text.contains("Loading model") { return "Das Sprachmodell am PC lädt gerade noch – in ein paar Sekunden nochmal versuchen." }
+            if code == 503 { return text.isEmpty ? "Der PC ist gerade beschäftigt (lädt oder rechnet) – gleich nochmal versuchen." : text }
+            if code == 502 || code == 504 { return "NitraX am PC antwortet gerade nicht – läuft das Programm noch?" }
+            if code == 413 { return "Die Datei ist zu groß für den Handy-Zugang." }
             return text.isEmpty ? "Fehler \(code)" : text
         case .antwort: return "Unerwartete Antwort vom PC."
         }
