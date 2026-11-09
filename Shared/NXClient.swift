@@ -97,7 +97,15 @@ final class NXClient: @unchecked Sendable {
                 basis = nil                                  // andere Adresse probieren (z. B. unterwegs über Tailscale)
             } catch let e as URLError {
                 if e.code == .cancelled { throw e }
+                #if !NX_ERWEITERUNG
+                Fehlerbericht.shared.melden("Netz", "\(methode) \(pfad.prefix(80)) -> \(e.code.rawValue) \(e.localizedDescription)")
+                #endif
                 throw NXFehler.keineVerbindung
+            } catch let NXFehler.server(code, text) {
+                #if !NX_ERWEITERUNG
+                if code >= 500 { Fehlerbericht.shared.melden("Server", "\(methode) \(pfad.prefix(80)) -> \(code) \(text.prefix(160))") }
+                #endif
+                throw NXFehler.server(code, text)
             }
         }
     }

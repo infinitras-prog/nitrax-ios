@@ -6,6 +6,7 @@ import AppIntents
 struct HauptAnsicht: View {
     @EnvironmentObject private var studio: Studio
     @EnvironmentObject private var navigation: Navigation
+    @State private var vorladen = false
 
     var body: some View {
         TabView(selection: $navigation.reiter) {
@@ -27,6 +28,19 @@ struct HauptAnsicht: View {
                 .tag(Navigation.Reiter.helfer)
         }
         .modifier(SeitenleisteAufIPad())
+        .background {
+            // 🧍 Liste Nr. 10: Helfer-Figur 25 s nach dem Start unsichtbar vorladen -> der Helfer-Tab ist danach sofort da
+            if vorladen, let url = AnrufDienst.shared.helferURL {
+                VideoHelferWeb(url: url) { _ in }.frame(width: 2, height: 2).opacity(0.01).allowsHitTesting(false)
+            }
+        }
+        .task {
+            try? await Task.sleep(for: .seconds(3))
+            guard navigation.reiter != .helfer else { return }
+            vorladen = true
+            try? await Task.sleep(for: .seconds(25))
+            vorladen = false
+        }
         .overlay(alignment: .top) {
             if let m = studio.meldung {
                 Text(m)

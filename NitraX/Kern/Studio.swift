@@ -218,6 +218,7 @@ final class Studio: ObservableObject {
     }
 
     private var vorratGeprueft = false
+    private var wachZeit = Date.distantPast
 
     func aktualisieren() async {
         guard let c = client else { return }
@@ -232,6 +233,17 @@ final class Studio: ObservableObject {
             LiveAktivitaeten.abgleichen(s, client: c)
             await LokaleAnrufe.abgleichen(c)                                   // 📞 geplante Anrufe als Klingel-Alarm
             if !vorratGeprueft { vorratGeprueft = true; Task { await Stimmvorrat.auffuellen(c) } }   // 👋 Begrüßungen in ihrer Stimme
+            Task { await Fehlerbericht.shared.senden(c) }                       // 🧾 gesammelte Fehler an den PC (höchstens alle 2 min)
+            if Postausgang.anzahl > 0 {                                         // 📮 gemerkte Aufträge starten
+                let n = await Postausgang.abarbeiten(c)
+                if n > 0 { meldung = "📮 \(n) gemerkte\(n == 1 ? "r Auftrag läuft" : " Aufträge laufen") jetzt" }
+            }
+            // ⏰ Liste Nr. 1: solange die App offen ist, Stimme + Sprachmodell am PC wach halten (Anruf ohne langes Klingeln) –
+            // nie während ein Auftrag läuft oder wartet (die Grafikkarte gehört dann dem Auftrag)
+            if Date().timeIntervalSince(wachZeit) > 90, !s.auftraege.contains(where: { $0.offen }), s.fremd.isEmpty {
+                wachZeit = Date()
+                Task.detached { _ = try? await c.post("/api/begleiter/wach", [:], zeit: 120) }
+            }
             if Date().timeIntervalSince(helferZeit) > 60 {           // 🧍 Stimmungs-Widget
                 helferZeit = Date()
                 if let h = try? await c.get("/api/begleiter/statistik", JSONWert.self) {

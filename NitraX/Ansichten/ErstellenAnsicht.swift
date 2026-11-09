@@ -219,6 +219,15 @@ struct WorkflowFormular: View {
             await studio.aktualisieren()
             navigation.reiter = .auftraege
             dismiss()
+        } catch NXFehler.keineVerbindung {
+            // 📮 PC nicht erreichbar: merken, startet von selbst, sobald er wieder da ist
+            var felder: [String: Any] = [:]
+            for (k, v) in werte { felder[k] = v.alsAny }
+            Postausgang.merken(wf: workflow.id, name: workflow.name, felder: felder)
+            Gemeinsam.defaults.removeObject(forKey: entwurfSchluessel)
+            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            studio.meldung = "📮 PC gerade nicht erreichbar – »\(workflow.name)« startet automatisch, sobald er wieder da ist"
+            dismiss()
         } catch {
             fehler = error.localizedDescription
         }

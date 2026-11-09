@@ -11,6 +11,7 @@ struct EinstellungenAnsicht: View {
     @State private var testLaeuft = false
     @AppStorage("faceid_an") private var faceID = false
     @AppStorage("fertig_klang") private var fertigKlang = true
+    @AppStorage("echo_aec") private var echoAEC = false
     @State private var live = LiveAktivitaeten.an
 
     var body: some View {
@@ -32,6 +33,7 @@ struct EinstellungenAnsicht: View {
 
                 Section("Mitteilungen") {
                     Toggle("Bei fertigen Aufträgen und Nachrichten vom Helfer", isOn: $mitteilungen)
+                    Toggle("🔇 Echo-Unterdrückung im Anruf (experimentell)", isOn: $echoAEC)
                     Toggle("🔔 Klang, wenn ein Auftrag fertig wird", isOn: $fertigKlang)
                         .onChange(of: fertigKlang) { _, an in if an { FertigKlang.spielen() } }
                         .onChange(of: mitteilungen) { _, an in Benachrichtigungen.an = an }

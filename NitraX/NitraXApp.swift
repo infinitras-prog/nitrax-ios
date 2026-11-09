@@ -6,6 +6,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         UNUserNotificationCenter.current().delegate = self
         Benachrichtigungen.kategorienEinrichten()
         AnrufDienst.shared.starten()                   // 📞 Helfer-Anrufe (VoIP)
+        Fehlerbericht.shared.starten()                 // 🧾 Fehler + Abstürze sammeln
         return true
     }
 
@@ -30,6 +31,10 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
     // Antippen: Auftrag bzw. Helfer öffnen
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
         let info = response.notification.request.content.userInfo
+        if let t = response as? UNTextInputNotificationResponse, !t.userText.trimmingCharacters(in: .whitespaces).isEmpty {
+            await MitteilungsAntwort.senden(t.userText, info: info)      // 💬 direkt aus der Mitteilung geantwortet
+            return
+        }
         if LokaleAnrufe.istAnruf(info) {                     // 📞 Klingel-Mitteilung angenommen / abgelehnt
             let t = (info["nx_anruf"] as? Int) ?? 0
             if response.actionIdentifier == "ablehnen" || response.actionIdentifier == UNNotificationDismissActionIdentifier {

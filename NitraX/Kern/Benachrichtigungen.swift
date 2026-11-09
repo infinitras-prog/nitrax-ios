@@ -66,6 +66,7 @@ enum Benachrichtigungen {
         inhalt.threadIdentifier = helfer ? "helfer" : "auftraege"
         if let ziel { inhalt.userInfo = ["auftrag": ziel] }
         if helfer { inhalt.userInfo = ["helfer": true] }
+        inhalt.categoryIdentifier = helfer ? "NX_HELFER" : "NX_AUFTRAG"          // 💬 direkt antworten
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: id, content: inhalt, trigger: nil))
     }
 
@@ -78,9 +79,10 @@ enum Benachrichtigungen {
         let filmlook = UNNotificationAction(identifier: "filmlook", title: "🎞 Film-Look", options: [])
         let oeffnen = UNNotificationAction(identifier: "oeffnen", title: "Ansehen", options: [.foreground])
         var kategorien = [
-            UNNotificationCategory(identifier: "NX_BILD", actions: [variante, groesser, oeffnen], intentIdentifiers: []),
-            UNNotificationCategory(identifier: "NX_VIDEO", actions: [variante, schaerfen, filmlook, oeffnen], intentIdentifiers: []),
-            UNNotificationCategory(identifier: "NX_AUFTRAG", actions: [variante, oeffnen], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "NX_BILD", actions: [MitteilungsAntwort.aktion, variante, groesser, oeffnen], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "NX_VIDEO", actions: [MitteilungsAntwort.aktion, variante, schaerfen, filmlook], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "NX_AUFTRAG", actions: [MitteilungsAntwort.aktion, variante, oeffnen], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "NX_HELFER", actions: [MitteilungsAntwort.aktion], intentIdentifiers: []),
         ]
         LokaleAnrufe.kategorie(&kategorien)                                   // 📞 Annehmen / Ablehnen
         UNUserNotificationCenter.current().setNotificationCategories(Set(kategorien))

@@ -60,6 +60,7 @@ final class AnrufDienst: NSObject, ObservableObject {
             if !lautsprecher { lautsprecherUmschalten() }        // wie FaceTime: Video = Lautsprecher
         } else {
             augen.stoppen()
+            VideoPiP.shared.aus()
             videoWeb = nil
             if lautsprecher { lautsprecherUmschalten() }
         }
@@ -232,7 +233,7 @@ extension AnrufDienst: CXProviderDelegate {
             self.pegel = 0
             self.welle = Array(repeating: 0, count: 48)
             self.helferSpricht = false
-            if self.video { self.video = false; self.augen.stoppen(); self.videoWeb = nil }
+            if self.video { self.video = false; self.augen.stoppen(); self.videoWeb = nil; VideoPiP.shared.aus() }
             self.aktiv = nil
             self.imGespraech = false
             self.seit = nil
@@ -440,6 +441,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             if let m = b?["einst"]?["modell"]?.text, !m.isEmpty { neu["modell"] = m }
             if let c = try? await client.post("/api/chats", neu), let id = c["id"]?.text {
                 chat = id
+                Task { [weak self] in await self?.kontextHolen() }
                 _ = try? await client.post("/api/chats/\(id)/aendern", ["titel": "📞 Telefonat " + Date().formatted(date: .abbreviated, time: .shortened)])
                 // ⚡ Anfang (Anweisungen, ~4600 Token) schon einlesen, sobald das Modell bereit ist -> erste Antwort 0,6 s statt 5 s
                 Task.detached { [client] in
@@ -483,13 +485,20 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private func stillSein() {
         for e in warteschlange { e.ton.cancel() }
         warteschlange.removeAll()
-        spieler?.stop()
+        if let p = spieler {                                  // weich ausblenden statt hart abschneiden
+            unterbrochen = true
+            p.setVolume(0, fadeDuration: 0.18)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { p.stop() }
+        }
         spieler = nil
         if lokalSpricht { lokal.stopSpeaking(at: .immediate); lokalSpricht = false }
         ohr.helferZustand = "hoeren"
     }
 
     private var redet: Bool { spieler != nil || lokalSpricht || laedt }
+    private var unterbrochen = false
+    /// 🧠 Liste Nr. 2: Anknüpfen an euer letztes Gespräch + Gedächtnis (kommt einmal in die erste Nachricht des Telefonats)
+    private var kontext: String?
     private var laedt = false
 
     private func sagen(_ saetze: [String]) {
@@ -670,10 +679,41 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
                         extraBilder: [name])
     }
 
+    private func kontextHolen() async {
+        var teile: [String] = []
+        // letztes Helfer-Gespräch (die letzten Wechsel, kurz)
+        if let h = try? await client.post("/api/begleiter/chat", [:]), let hid = h["id"]?.text,
+           let d = try? await client.roh("/api/chats/\(hid)"), let w = try? JSONDecoder().decode(JSONWert.self, from: d) {
+            let zeilen: [String] = (w["nachrichten"]?.liste ?? []).suffix(6).compactMap { n in
+                guard let r = n["rolle"]?.text, r == "user" || r == "assistant", var t = n["text"]?.text else { return nil }
+                while t.hasPrefix("("), let e = t.firstIndex(of: ")") { t = String(t[t.index(after: e)...]).trimmingCharacters(in: .whitespacesAndNewlines) }
+                t = t.replacingOccurrences(of: "\\[[^\\]]*\\]", with: "", options: .regularExpression).trimmingCharacters(in: .whitespacesAndNewlines)
+                guard t.count > 1 else { return nil }
+                return (r == "user" ? "Er: " : "Du: ") + String(t.prefix(140))
+            }
+            if !zeilen.isEmpty { teile.append("Euer letztes Gespräch vor dem Anruf: " + zeilen.joined(separator: " | ")) }
+        }
+        // Gedächtnis: ein paar kurze Fakten über ihn
+        if let d = try? await client.roh("/api/chat/gedaechtnis"), let w = try? JSONDecoder().decode(JSONWert.self, from: d), w["an"]?.wahr != false {
+            let fakten = (w["fakten"]?.liste ?? []).compactMap { $0["text"]?.text }
+                .filter { $0.count <= 120 && !$0.lowercased().contains("prompt") }.suffix(6)
+            if !fakten.isEmpty { teile.append("Was du über ihn weißt: " + fakten.joined(separator: "; ")) }
+        }
+        if !teile.isEmpty { kontext = teile.joined(separator: "\n"); log("Kontext geladen (\(kontext?.count ?? 0) Zeichen)") }
+    }
+
     private func antworten(_ text: String, extraBilder: [String] = []) async {
         guard let chat else { sagen(["Moment, ich bin gleich wieder da."]); return }
         var nachricht = "(Ihr telefoniert gerade – er hat dich angerufen bzw. abgehoben. Antworte kurz, natürlich gesprochen, 1-3 Sätze, ohne Emojis.)\n" + text
         var bilder: [String] = extraBilder
+        if let k = kontext {                                    // nur in der ERSTEN Nachricht (danach steht es im Verlauf)
+            nachricht = "(Zum Anknüpfen, nicht vorlesen – \(k))\n" + nachricht
+            kontext = nil
+        }
+        if unterbrochen {
+            nachricht = "(Er ist dir gerade ins Wort gefallen – reagiere natürlich darauf, ohne dich lang zu entschuldigen.) " + nachricht
+            unterbrochen = false
+        }
         if let augen, augen.laeuft {
             nachricht = "(Videoanruf: ihr seht euch gerade.) " + nachricht
             // 👁 Seh-Fragen: aktuelles Kamerabild mitschicken (nicht bei jedem Satz – das würde jede Antwort verlangsamen)
@@ -764,6 +804,13 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             i = naechstes
         }
         if ende, start < rest.endIndex { aus.append(String(rest[start...])) }
+        // ⚡ ganz am Anfang der Antwort und noch kein Satzende: ab ~7 Wörtern schon bis zum Komma sprechen
+        if !ende, aus.isEmpty, antwortGesprochen == 0, let k = rest.firstIndex(of: ","),
+           rest[..<k].split(separator: " ").count >= 7 {
+            let teil = rest[...k]
+            aus.append(String(teil))
+            start = rest.index(after: k)
+        }
         antwortGesprochen += rest.distance(from: rest.startIndex, to: ende ? rest.endIndex : start)
         for roh in aus {                                   // [freude] & Co. -> Gesicht der Figur im Videoanruf
             if let r = roh.range(of: #"\[([a-zäöü]+)\]"#, options: .regularExpression) {

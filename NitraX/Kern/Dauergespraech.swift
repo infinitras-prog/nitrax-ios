@@ -51,6 +51,14 @@ final class Dauergespraech: ObservableObject {
         sitzungMerk = sitzung
         if sitzung { HelferTon.einrichten() }
         let ein = motor.inputNode
+        if !sitzung, UserDefaults.standard.bool(forKey: "echo_aec") {
+            // 🔇 Liste Nr. 5 (experimentell): Apples Sprachverarbeitung (Echo-Unterdrückung wie FaceTime). In 0.5.9 wurde damit die
+            // Wiedergabe stumm – Ursache: iOS duckt »andere« Wiedergabe beim Sprachverarbeiten. Jetzt: Ducken minimal.
+            if !ein.isVoiceProcessingEnabled { try? ein.setVoiceProcessingEnabled(true) }
+            if #available(iOS 17.0, *) {
+                ein.voiceProcessingOtherAudioDuckingConfiguration = AVAudioVoiceProcessingOtherAudioDuckingConfiguration(enableAdvancedDucking: false, duckingLevel: .min)
+            }
+        }
         let format = ein.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else { throw NSError(domain: "NitraX", code: 3, userInfo: [NSLocalizedDescriptionKey: "Kein Mikrofon verfügbar"]) }
         konverter = AVAudioConverter(from: format, to: ziel)

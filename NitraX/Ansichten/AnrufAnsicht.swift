@@ -14,7 +14,8 @@ struct AnrufAnsicht: View {
             if dienst.video, let url = dienst.helferURL {
                 // 📹 Videoanruf: Helfer im Vollbild, du klein oben rechts
                 VideoHintergrund.ansicht(dienst.videoHintergrund).ignoresSafeArea().transition(.opacity)
-                VideoHelferWeb(url: url) { w in dienst.videoWeb = w }
+                PiPEbene().frame(width: 4, height: 4).opacity(0.02).allowsHitTesting(false)      // 🖼 Quelle fürs Bild-in-Bild
+                VideoHelferWeb(url: url) { w in dienst.videoWeb = w; VideoPiP.shared.an(w) }
                     .ignoresSafeArea()
                     .transition(.opacity)
                 VStack {
