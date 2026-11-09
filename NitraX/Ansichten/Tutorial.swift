@@ -4,7 +4,7 @@ import AVKit
 /// 🎓 Gesamtplan 4b: Klick-Tutorial je Workflow – Feld für Feld erklärt (mit Beispiel), dann echter Testlauf zum
 /// Live-Mitverfolgen (jede Phase in Alltagssprache) bis zum ersten Ergebnis. Inhalte kommen vom PC (tutorial.py).
 struct TutorialDaten {
-    struct Schritt { let feld: String; let label: String; let text: String; let beispiel: JSONWert? }
+    struct Schritt { let feld: String; let label: String; let text: String; let beispiel: JSONWert?; var test = false }
     let name: String
     let intro: String
     let dauer: String
@@ -23,7 +23,8 @@ struct TutorialDaten {
         schritte = (w["schritte"]?.liste ?? []).compactMap { s in
             guard let f = s["feld"]?.text else { return nil }
             let b = s["beispiel"]
-            return Schritt(feld: f, label: s["label"]?.text ?? f, text: s["text"]?.text ?? "", beispiel: (b == nil || b == .nichts) ? nil : b)
+            return Schritt(feld: f, label: s["label"]?.text ?? f, text: s["text"]?.text ?? "", beispiel: (b == nil || b == .nichts) ? nil : b,
+                           test: s["test"]?.wahr ?? false)
         }
         test = w["test"]?.objekt ?? [:]
         fertig = w["fertig"]?.text ?? "Geschafft!"

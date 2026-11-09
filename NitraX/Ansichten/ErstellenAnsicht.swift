@@ -119,6 +119,7 @@ struct WorkflowFormular: View {
         do {
             let t = try await TutorialDaten.laden(c, wf: workflow.id)
             for (k, v) in t.test { werte[k] = v }                       // schnelle Test-Einstellungen
+            for s in t.schritte where s.test { if let b = s.beispiel { werte[s.feld] = b } }
             withAnimation(.snappy) { tutorial = t; tutSchritt = 0 }
         } catch { fehler = "Einführung nicht verfügbar: \(error.localizedDescription)" }
     }
