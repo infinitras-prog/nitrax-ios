@@ -55,7 +55,7 @@ final class AnrufDienst: NSObject, ObservableObject {
 
     override init() {
         let k = CXProviderConfiguration()
-        k.supportsVideo = false
+        k.supportsVideo = true
         k.maximumCallsPerCallGroup = 1
         k.supportedHandleTypes = [.generic]
         k.iconTemplateImageData = UIImage(systemName: "person.wave.2.fill")?.pngData()
@@ -113,6 +113,26 @@ final class AnrufDienst: NSObject, ObservableObject {
         }
     }
 
+    private var videoGewuenscht = false
+
+    /// 📞 Du rufst den Helfer an (wie ein normaler ausgehender Anruf; video = gleich als Videoanruf)
+    func anrufen(video: Bool = false) {
+        guard aktiv == nil, !imGespraech else { return }
+        let name = Gemeinsam.defaults.string(forKey: "helfer_name") ?? "Dein Helfer"
+        let uuid = UUID()
+        anrufer = name
+        videoGewuenscht = video
+        aktiv = (uuid, ["Hey, schön, dass du anrufst! Was gibt's?", "Hi! Na, was kann ich für dich tun?",
+                        "Hallo du! Schön, dich zu hören.", "Hey! Ich hab grad an dich gedacht."].randomElement()!, name)
+        let a = CXStartCallAction(call: uuid, handle: CXHandle(type: .generic, value: name))
+        a.isVideo = video
+        a.contactIdentifier = name
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        steuerung.request(CXTransaction(action: a)) { fehler in
+            if fehler != nil { Task { @MainActor in self.aktiv = nil } }
+        }
+    }
+
     func auflegen() {
         guard let a = aktiv else { return }
         steuerung.request(CXTransaction(action: CXEndCallAction(call: a.uuid))) { _ in }
@@ -166,6 +186,20 @@ extension AnrufDienst: CXProviderDelegate {
         }
     }
 
+    nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
+        Task { @MainActor in
+            let s = AVAudioSession.sharedInstance()
+            try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+            provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: Date())
+            self.lautsprecher = false
+            self.stumm = false
+            self.seit = Date()
+            self.imGespraech = true
+            action.fulfill()
+            provider.reportOutgoingCall(with: action.callUUID, connectedAt: Date())     // sie »hebt sofort ab«
+        }
+    }
+
     nonisolated func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         Task { @MainActor in
             self.gespraech?.beenden()
@@ -194,6 +228,7 @@ extension AnrufDienst: CXProviderDelegate {
                 self.videoWeb?.evaluateJavaScript("window.nxVideo && window.nxVideo.gefuehl('\(name)')", completionHandler: nil)
             }
             if self.video { g.augen = self.augen }
+            if self.videoGewuenscht { self.videoGewuenscht = false; if !self.video { self.videoUmschalten() } }
             self.gespraech = g
             g.starten()
             self.anzeigeTakt?.invalidate()
@@ -239,16 +274,15 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private var spieler: AVAudioPlayer?
     private let lokal = AVSpeechSynthesizer()          // 🗣 Rückfall: das iPhone spricht selbst, wenn die PC-Stimme nicht rechtzeitig kommt
     private var lokalSpricht = false
-    private var warteschlange: [String] = []
+    /// Satz + sein Ton, der schon geladen wird, während der vorige Satz noch läuft
+    private var warteschlange: [(satz: String, ton: Task<Data?, Never>)] = []
     private var chat: String?
     private var aus = false
     private var stille = 0
     private var stimme: String?
     private var pcStimmeLangsam = 0
-    private lazy var strom = StromSpieler(motor: ohr.motor)
     private var fuellTon: Data?                          // »Mhm, Moment.« in IHRER Stimme (beim Abheben geholt)
     private var stromGeht = true
-    private var stromLaeuft = false
     private var stromFehler = 0
     var eingangPegel: Float { ohr.pegel }
     var gefuehl: ((String) -> Void)?
@@ -256,7 +290,6 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private(set) var denkt = false
     /// Lautstärke der Helferstimme (für den Mund der Figur im Videoanruf)
     var ausgangPegel: Float {
-        if stromLaeuft { return strom.pegel }
         if let p = spieler {
             p.updateMeters()
             return max(0, min(1, (p.averagePower(forChannel: 0) + 45) / 38))
@@ -264,7 +297,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         if lokalSpricht { return 0.35 + 0.3 * Float(abs(sin(Date().timeIntervalSince1970 * 9))) }
         return 0
     }
-    var helferRedet: Bool { spieler != nil || lokalSpricht || stromLaeuft }
+    var helferRedet: Bool { spieler != nil || lokalSpricht }
     private var ersterSatz = true
 
     init(client: NXClient, begruessung: String) {
@@ -294,12 +327,13 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             var vor: [String: Any] = ["sprache": "German"]
             if let stimme, !stimme.isEmpty { vor["stimme"] = stimme }
             Task.detached { [client] in _ = try? await client.post("/api/anruf/vorbereiten", vor, zeit: 180) }
-            try? ohr.starten(sitzung: false)                 // erst Mikro + Engine, dann spricht sie über dieselbe Engine
+            if let n = b?["einst"]?["name"]?.text, !n.isEmpty { Gemeinsam.defaults.set(n, forKey: "helfer_name") }
             sagen([begruessung])
+            try? ohr.starten(sitzung: false)
             Task { [weak self] in
                 try? await Task.sleep(for: .seconds(4))
                 guard let self, !self.aus else { return }
-                self.fuellTon = await self.pcTon("Mhm, Moment.")
+                self.fuellTon = await self.tonHolen("Mhm, Moment.")
             }
         }
     }
@@ -314,42 +348,36 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         spieler?.stop()
         spieler = nil
         lokal.stopSpeaking(at: .immediate)
-        strom.stoppen()
+        for e in warteschlange { e.ton.cancel() }
+        warteschlange.removeAll()
     }
 
     private func stillSein() {
+        for e in warteschlange { e.ton.cancel() }
         warteschlange.removeAll()
         spieler?.stop()
         spieler = nil
         if lokalSpricht { lokal.stopSpeaking(at: .immediate); lokalSpricht = false }
-        if stromLaeuft { strom.stoppen(); stromLaeuft = false }
         ohr.helferZustand = "hoeren"
     }
 
-    private var redet: Bool { spieler != nil || lokalSpricht || laedt || stromLaeuft }
+    private var redet: Bool { spieler != nil || lokalSpricht || laedt }
     private var laedt = false
 
     private func sagen(_ saetze: [String]) {
-        warteschlange += saetze.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { $0.count > 1 }
+        for s in saetze.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where s.count > 1 {
+            let t = Task { [weak self] () -> Data? in await self?.tonHolen(s) }           // sofort laden (parallel zum Sprechen)
+            warteschlange.append((s, t))
+        }
         if !redet { Task { await naechster() } }
     }
 
     private func naechster() async {
         guard !aus, !warteschlange.isEmpty else { if !redet { ohr.helferZustand = "ruhe" }; return }
-        let satz = warteschlange.removeFirst()
+        let (satz, holen) = warteschlange.removeFirst()
         ohr.helferZustand = "sprechen"
-        // ⚡ 1. Wahl: gestreamte Stimme – erster Ton nach ~0,3 s
-        if stromGeht, pcStimmeLangsam < 2, let anfrage = stromAnfrage(satz) {
-            stromLaeuft = true
-            let ok = await strom.spielen(anfrage)
-            stromLaeuft = false
-            guard !aus else { return }
-            if ok { await naechster(); return }
-            stromFehler += 1                                    // zweimal kein Streaming -> ganze Sätze (mp3)
-            if stromFehler >= 2 { stromGeht = false }
-        }
         laedt = true
-        let ton = pcStimmeLangsam >= 2 ? nil : await pcTon(satz)          // PC zweimal zu langsam -> nur noch lokal
+        let ton = await holen.value
         laedt = false
         guard !aus else { return }
         if let ton, let p = try? AVAudioPlayer(data: ton) {
@@ -360,6 +388,34 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         } else {
             lokalSprechen(satz)
         }
+    }
+
+    /// Ton eines Satzes in IHRER Stimme: schnelle Stimme (ganzer Satz als PCM -> WAV, ~1 s), sonst mp3
+    private func tonHolen(_ satz: String) async -> Data? {
+        if stromGeht, let anfrage = stromAnfrage(satz) {
+            if let (d, resp) = try? await URLSession.shared.data(for: anfrage), (resp as? HTTPURLResponse)?.statusCode == 200, d.count > 2004 {
+                let rate = d.prefix(4).withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
+                if rate >= 8000 && rate <= 96000 { stromFehler = 0; return Self.wav(pcm: d.dropFirst(4), rate: rate) }
+            }
+            if Task.isCancelled { return nil }
+            stromFehler += 1
+            if stromFehler >= 2 { stromGeht = false }          // zweimal nichts -> nur noch ganze Sätze als mp3
+        }
+        if Task.isCancelled || pcStimmeLangsam >= 3 { return nil }
+        return await pcTon(satz)
+    }
+
+    /// 16-bit-PCM mono -> WAV-Datei (für AVAudioPlayer)
+    static func wav(pcm: Data, rate: UInt32) -> Data {
+        var d = Data()
+        func u32(_ v: UInt32) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 4)) }
+        func u16(_ v: UInt16) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 2)) }
+        let n = UInt32(pcm.count - pcm.count % 2)
+        d.append("RIFF".data(using: .ascii)!); u32(36 + n); d.append("WAVE".data(using: .ascii)!)
+        d.append("fmt ".data(using: .ascii)!); u32(16); u16(1); u16(1); u32(rate); u32(rate * 2); u16(2); u16(16)
+        d.append("data".data(using: .ascii)!); u32(n)
+        d.append(pcm.prefix(Int(n)))
+        return d
     }
 
     private func stromAnfrage(_ satz: String) -> URLRequest? {

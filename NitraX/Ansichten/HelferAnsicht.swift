@@ -60,6 +60,17 @@ struct HelferAnsicht: View {
                             .background(.ultraThinMaterial, in: Circle())
                     }
                 }
+                // 📞 Helfer anrufen (gedrückt halten: Videoanruf)
+                Menu {
+                    Button { AnrufDienst.shared.anrufen() } label: { Label("Anrufen", systemImage: "phone.fill") }
+                    Button { AnrufDienst.shared.anrufen(video: true) } label: { Label("Videoanruf", systemImage: "video.fill") }
+                } label: {
+                    Image(systemName: "phone.fill").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())
+                        .foregroundStyle(.green)
+                } primaryAction: {
+                    stummSchalten()
+                    AnrufDienst.shared.anrufen()
+                }
                 // 📷 Foto für den Helfer: er schaut es sich an und antwortet
                 Button { kamera = true } label: {
                     Image(systemName: "camera.fill").frame(width: 20, height: 20).padding(10).background(.ultraThinMaterial, in: Circle())

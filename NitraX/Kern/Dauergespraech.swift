@@ -42,10 +42,6 @@ final class Dauergespraech: ObservableObject {
         sitzungMerk = sitzung
         if sitzung { HelferTon.einrichten() }
         let ein = motor.inputNode
-        if !sitzung {                                   // Telefonat: Echo-Unterdrückung wie beim echten Anruf
-            if !ein.isVoiceProcessingEnabled { try? ein.setVoiceProcessingEnabled(true) }
-        }
-        _ = motor.mainMixerNode                         // Ausgang anlegen (die Helferstimme spielt über dieselbe Engine)
         let format = ein.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else { throw NSError(domain: "NitraX", code: 3, userInfo: [NSLocalizedDescriptionKey: "Kein Mikrofon verfügbar"]) }
         konverter = AVAudioConverter(from: format, to: ziel)
