@@ -22,6 +22,7 @@ struct HelferAnsicht: View {
     @State private var ar = false
     @State private var tagebuch = false
     @State private var verlauf = false
+    @State private var routinenZeigen = false
     @ObservedObject private var anruf = AnrufDienst.shared
     @Environment(\.scenePhase) private var phase
 
@@ -80,6 +81,7 @@ struct HelferAnsicht: View {
                 Menu {
                     Button { ar = true } label: { Label("Ins Zimmer stellen (AR)", systemImage: "arkit") }.disabled(!bruecke.bereit)
                     Button { verlauf = true } label: { Label("Gesprächsverlauf", systemImage: "clock.arrow.circlepath") }
+                    Button { routinenZeigen = true } label: { Label("Routinen", systemImage: "alarm") }
                     Button { tagebuch = true } label: { Label("Unser Tagebuch", systemImage: "book.closed") }
                     Button { einstellungen = true } label: { Label("Helfer anpassen", systemImage: "slider.horizontal.3") }
                     Button { neuLaden = UUID() } label: { Label("Neu laden", systemImage: "arrow.clockwise") }
@@ -120,6 +122,7 @@ struct HelferAnsicht: View {
         .animation(.spring(duration: 0.3), value: augen.laeuft)
         .sheet(isPresented: $tagebuch) { HelferTagebuch() }
         .sheet(isPresented: $verlauf) { HelferVerlauf { neuLaden = UUID() } }
+        .sheet(isPresented: $routinenZeigen) { RoutinenAnsicht() }
         .sheet(isPresented: $einstellungen) {
             HelferEinstellungen { neuLaden = UUID() }
         }

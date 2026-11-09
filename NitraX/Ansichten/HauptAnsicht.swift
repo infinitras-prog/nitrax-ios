@@ -1,4 +1,5 @@
 import SwiftUI
+import AudioToolbox
 import AppIntents
 
 @MainActor
@@ -51,6 +52,7 @@ struct HauptAnsicht: View {
         }
         .onChange(of: fertigZahl) { alt, neu in
             guard neu > alt, alt > 0 else { return }
+            FertigKlang.spielen()                                    // 🔔 kurzer NitraX-Klang (hält sich an den Lautlos-Schalter)
             withAnimation(.easeOut(duration: 0.3)) { leuchten = true }
             withAnimation(.easeIn(duration: 0.9).delay(0.4)) { leuchten = false }
         }
@@ -247,5 +249,20 @@ struct LaufKarte: View {
             }
         }
         .karte()
+    }
+}
+
+
+/// 🔔 NitraX-Klang beim Fertig-Moment (Systemton: leise, beachtet den Lautlos-Schalter, abschaltbar)
+enum FertigKlang {
+    private static let id: SystemSoundID? = {
+        guard let u = Bundle.main.url(forResource: "fertig", withExtension: "wav") else { return nil }
+        var i: SystemSoundID = 0
+        return AudioServicesCreateSystemSoundID(u as CFURL, &i) == noErr ? i : nil
+    }()
+
+    static func spielen() {
+        guard UserDefaults.standard.object(forKey: "fertig_klang") as? Bool ?? true, let id else { return }
+        AudioServicesPlaySystemSound(id)
     }
 }

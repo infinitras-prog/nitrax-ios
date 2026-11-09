@@ -10,6 +10,7 @@ struct EinstellungenAnsicht: View {
     @State private var push: Push.Stand?
     @State private var testLaeuft = false
     @AppStorage("faceid_an") private var faceID = false
+    @AppStorage("fertig_klang") private var fertigKlang = true
     @State private var live = LiveAktivitaeten.an
 
     var body: some View {
@@ -31,6 +32,8 @@ struct EinstellungenAnsicht: View {
 
                 Section("Mitteilungen") {
                     Toggle("Bei fertigen Aufträgen und Nachrichten vom Helfer", isOn: $mitteilungen)
+                    Toggle("🔔 Klang, wenn ein Auftrag fertig wird", isOn: $fertigKlang)
+                        .onChange(of: fertigKlang) { _, an in if an { FertigKlang.spielen() } }
                         .onChange(of: mitteilungen) { _, an in Benachrichtigungen.an = an }
                     if Push.token == nil {
                         Label("Noch nicht für Sofort-Push angemeldet", systemImage: "bell.slash").foregroundStyle(Farbe.warn)
