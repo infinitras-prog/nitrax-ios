@@ -6,17 +6,34 @@ struct AnrufAnsicht: View {
     @ObservedObject var dienst: AnrufDienst
     @State private var puls = false
     @State private var portrait = HelferPortrait.bild
+    @State private var zeigenAuswahl = false
 
     var body: some View {
         ZStack {
             Hintergrund()
             if dienst.video, let url = dienst.helferURL {
                 // 📹 Videoanruf: Helfer im Vollbild, du klein oben rechts
+                VideoHintergrund.ansicht(dienst.videoHintergrund).ignoresSafeArea().transition(.opacity)
                 VideoHelferWeb(url: url) { w in dienst.videoWeb = w }
                     .ignoresSafeArea()
                     .transition(.opacity)
                 VStack {
-                    HStack {
+                    HStack(alignment: .top) {
+                        // 🖼 ihr etwas zeigen · 🎨 Hintergrund
+                        VStack(spacing: 10) {
+                            Button { zeigenAuswahl = true } label: {
+                                Image(systemName: "photo.on.rectangle").font(.headline).padding(11).background(.ultraThinMaterial, in: Circle())
+                            }
+                            Menu {
+                                ForEach(VideoHintergrund.alle.indices, id: \.self) { i in
+                                    Button(VideoHintergrund.alle[i].1) { withAnimation { dienst.videoHintergrund = VideoHintergrund.alle[i].0 } }
+                                }
+                            } label: {
+                                Image(systemName: "paintpalette").font(.headline).padding(11).background(.ultraThinMaterial, in: Circle())
+                            }
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.leading, 16).padding(.top, 8)
                         Spacer()
                         ZStack(alignment: .bottomTrailing) {
                             KameraVorschau(sitzung: dienst.augen.sitzung)
@@ -60,6 +77,7 @@ struct AnrufAnsicht: View {
                 }
                 .animation(.easeOut(duration: 0.12), value: dienst.pegel)
                 .animation(.easeInOut(duration: 0.3), value: dienst.helferSpricht)
+        .sheet(isPresented: $zeigenAuswahl) { ZeigenAuswahl { d, t in dienst.zeigen(d, titel: t) } }
                 .onAppear { withAnimation(.easeOut(duration: 1.4).repeatForever(autoreverses: false)) { puls = true } }
                 }
                 Text(dienst.anrufer).font(.title.bold()).shadow(radius: dienst.video ? 6 : 0)

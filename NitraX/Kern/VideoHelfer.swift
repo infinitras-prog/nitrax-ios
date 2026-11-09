@@ -42,7 +42,7 @@ struct VideoHelferWeb: UIViewRepresentable {
     (function(){
       if (window.__nxVideo) return; window.__nxVideo = true;
       var st = document.createElement('style');
-      st.textContent = 'html, body { background: #07080f !important; overflow: hidden !important } '
+      st.textContent = 'html, body { background: transparent !important; overflow: hidden !important } '
         + '* { visibility: hidden !important } '
         + '.nxvid-buehne, .nxvid-buehne * { visibility: visible !important }';
       (document.head || document.documentElement).appendChild(st);
@@ -78,7 +78,8 @@ struct VideoHelferWeb: UIViewRepresentable {
         k.userContentController = inhalt
         let w = WKWebView(frame: .zero, configuration: k)
         w.isOpaque = false
-        w.backgroundColor = UIColor(red: 0.03, green: 0.03, blue: 0.06, alpha: 1)
+        w.backgroundColor = .clear                      // 🎨 Hintergrund kommt aus SwiftUI (wählbar)
+        w.scrollView.backgroundColor = .clear
         w.scrollView.isScrollEnabled = false
         w.scrollView.contentInsetAdjustmentBehavior = .never
         w.isUserInteractionEnabled = false
@@ -88,4 +89,79 @@ struct VideoHelferWeb: UIViewRepresentable {
     }
 
     func updateUIView(_ w: WKWebView, context: Context) {}
+}
+
+
+/// 🎨 Hintergründe für den Videoanruf
+enum VideoHintergrund {
+    static let alle: [(String, String)] = [("nacht", "🌙 Nacht"), ("sonne", "🌅 Sonnenuntergang"), ("studio", "🎛 Studio"), ("aurora", "✨ Aurora")]
+
+    @ViewBuilder
+    static func ansicht(_ id: String) -> some View {
+        switch id {
+        case "sonne":
+            LinearGradient(colors: [Color(red: 0.98, green: 0.55, blue: 0.3), Color(red: 0.55, green: 0.2, blue: 0.45), Color(red: 0.12, green: 0.08, blue: 0.2)],
+                           startPoint: .top, endPoint: .bottom)
+        case "studio":
+            RadialGradient(colors: [Color(red: 0.3, green: 0.32, blue: 0.38), Color(red: 0.08, green: 0.09, blue: 0.11)], center: .init(x: 0.5, y: 0.35),
+                           startRadius: 10, endRadius: 600)
+        case "aurora":
+            ZStack {
+                Color(red: 0.03, green: 0.04, blue: 0.08)
+                LinearGradient(colors: [Color(red: 0.13, green: 0.83, blue: 0.93).opacity(0.45), .clear, Color(red: 0.55, green: 0.36, blue: 1).opacity(0.45)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+        default:
+            LinearGradient(colors: [Color(red: 0.06, green: 0.07, blue: 0.16), Color(red: 0.02, green: 0.02, blue: 0.05)], startPoint: .top, endPoint: .bottom)
+        }
+    }
+}
+
+/// 🖼 Ergebnis aus der Bibliothek im Videoanruf zeigen
+@MainActor
+struct ZeigenAuswahl: View {
+    @EnvironmentObject private var studio: Studio
+    @Environment(\.dismiss) private var dismiss
+    let gewaehlt: (Data, String) -> Void
+    @State private var laedt: String?
+
+    private var bilder: [Auftrag] {
+        Array(studio.stand.auftraege.filter { $0.fertig && $0.bilderAnzahl > 0 }.sorted { ($0.finished ?? 0) > ($1.finished ?? 0) }.prefix(60))
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 6)], spacing: 6) {
+                    ForEach(bilder) { a in
+                        Button { Task { await holen(a) } } label: {
+                            BibliothekKachel(a: a).overlay { if laedt == a.id { ProgressView() } }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(10)
+            }
+            .navigationTitle("Ihr etwas zeigen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } } }
+        }
+    }
+
+    private func holen(_ a: Auftrag) async {
+        guard let c = studio.client, let url = c.url("/api/img/file/\(a.id)/0") else { return }
+        laedt = a.id
+        defer { laedt = nil }
+        var r = URLRequest(url: url)
+        for (k, v) in c.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
+        guard let (d, _) = try? await URLSession.shared.data(for: r), let b = UIImage(data: d) else { return }
+        // kleiner rechnen (schneller beim Ansehen)
+        let s = min(1, 1024 / max(b.size.width, b.size.height))
+        let klein = UIGraphicsImageRenderer(size: CGSize(width: b.size.width * s, height: b.size.height * s)).image { _ in
+            b.draw(in: CGRect(origin: .zero, size: CGSize(width: b.size.width * s, height: b.size.height * s)))
+        }
+        guard let jpeg = klein.jpegData(compressionQuality: 0.85) else { return }
+        gewaehlt(jpeg, a.titel)
+        dismiss()
+    }
 }

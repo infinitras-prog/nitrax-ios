@@ -178,12 +178,44 @@ final class Studio: ObservableObject {
         takt = Task { [weak self] in
             while !Task.isCancelled {
                 await self?.aktualisieren()
-                try? await Task.sleep(for: .seconds(3))
+                // 📡 Live-Verbindung steht: nur noch selten nachfragen (Änderungen kommen sofort über den Strom)
+                try? await Task.sleep(for: .seconds((self?.liveDa ?? false) ? 15 : 3))
             }
         }
+        live?.cancel()
+        live = Task { [weak self] in await self?.liveLauf() }
     }
 
-    func anhalten() { takt?.cancel(); takt = nil }
+    func anhalten() { takt?.cancel(); takt = nil; live?.cancel(); live = nil; liveDa = false }
+
+    // MARK: 📡 Live-Verbindung (Liste Nr. 17): Server-Sent Events vom PC – jede Änderung stößt sofort ein Aktualisieren an
+    private var live: Task<Void, Never>?
+    @Published private(set) var liveDa = false
+
+    private func liveLauf() async {
+        while !Task.isCancelled {
+            if let c = client, let url = c.url("/api/handy/live") {
+                var r = URLRequest(url: url)
+                r.timeoutInterval = 60
+                for (k, v) in c.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
+                do {
+                    let (bytes, resp) = try await URLSession.shared.bytes(for: r)
+                    if (resp as? HTTPURLResponse)?.statusCode == 200 {
+                        liveDa = true
+                        var zuletzt = Date.distantPast
+                        for try await zeile in bytes.lines {
+                            if Task.isCancelled { break }
+                            guard zeile.hasPrefix("data:") else { continue }
+                            // höchstens 2× pro Sekunde neu laden
+                            if Date().timeIntervalSince(zuletzt) > 0.5 { zuletzt = Date(); await aktualisieren() }
+                        }
+                    }
+                } catch {}
+                liveDa = false
+            }
+            try? await Task.sleep(for: .seconds(4))                 // getrennt (WLAN-Wechsel, PC neu gestartet) -> neu verbinden
+        }
+    }
 
     private var vorratGeprueft = false
 

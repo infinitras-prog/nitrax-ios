@@ -41,6 +41,16 @@ final class AnrufDienst: NSObject, ObservableObject {
         return URL(string: basis.absoluteString + "/?k=" + k + "#helfer")
     }
 
+    /// 🎨 Hintergrund hinter ihr im Videoanruf
+    @Published var videoHintergrund = UserDefaults.standard.string(forKey: "video_hintergrund") ?? "nacht" {
+        didSet { UserDefaults.standard.set(videoHintergrund, forKey: "video_hintergrund") }
+    }
+
+    func zeigen(_ jpeg: Data, titel: String) {
+        guard let g = gespraech else { return }
+        Task { await g.zeigen(jpeg, titel: titel) }
+    }
+
     func videoUmschalten() {
         video.toggle()
         gespraech?.augen = video ? augen : nil
@@ -277,6 +287,7 @@ extension AnrufDienst: CXProviderDelegate {
                     self.welle.removeFirst()
                     self.welle.append(p)
                     self.helferSpricht = g.helferRedet
+                    g.echoMelden(lautsprecher: self.lautsprecher)
                     if self.video, let w = self.videoWeb {             // 📹 Mund der Figur zur Stimme
                         let z = g.helferRedet ? "sprechen" : (g.denkt ? "denken" : "hoeren")
                         var js = String(format: "window.nxVideo && window.nxVideo.pegel(%.3f);", g.ausgangPegel)
@@ -336,6 +347,11 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         if protokoll.count > 400 { protokoll.removeFirst() }
     }
     var eingangPegel: Float { ohr.pegel }
+    /// 🔇 Echo-Sperre füttern (30× pro Sekunde): über den Lautsprecher kommt ihre Stimme stark zurück ins Mikro
+    func echoMelden(lautsprecher: Bool) {
+        let p = ausgangPegel                                  // 0…1 (aus dem Abspiel-Pegel)
+        ohr.echoDb = p > 0.02 ? (p * 38 - 45) + (lautsprecher ? 6 : -8) : -100
+    }
     var gefuehl: ((String) -> Void)?
     weak var augen: HelferAugen?
     private(set) var denkt = false
@@ -640,9 +656,24 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             aufgelegt?()
             return
         }
+        await antworten(text)
+    }
+
+    /// 🖼 Videoanruf »Zeigen«: ein Ergebnis aus der Bibliothek – sie schaut es sich an und sagt ehrlich, wie sie es findet
+    func zeigen(_ jpeg: Data, titel: String) async {
+        guard !aus else { return }
+        log("Zeigen: Bild (\(jpeg.count / 1000) KB)")
+        guard let r = try? await client.hochladen("/api/chat/upload", daten: jpeg, dateiname: "zeigen.jpg", typ: "image/jpeg"),
+              let name = r["name"]?.text else { sagen(["Hm, das Bild kam gerade nicht bei mir an."]); return }
+        stillSein()
+        await antworten("(Er zeigt dir im Videoanruf sein Ergebnis »\(titel)« – angehängt. Sag kurz und ehrlich, wie du es findest.)",
+                        extraBilder: [name])
+    }
+
+    private func antworten(_ text: String, extraBilder: [String] = []) async {
         guard let chat else { sagen(["Moment, ich bin gleich wieder da."]); return }
         var nachricht = "(Ihr telefoniert gerade – er hat dich angerufen bzw. abgehoben. Antworte kurz, natürlich gesprochen, 1-3 Sätze, ohne Emojis.)\n" + text
-        var bilder: [String] = []
+        var bilder: [String] = extraBilder
         if let augen, augen.laeuft {
             nachricht = "(Videoanruf: ihr seht euch gerade.) " + nachricht
             // 👁 Seh-Fragen: aktuelles Kamerabild mitschicken (nicht bei jedem Satz – das würde jede Antwort verlangsamen)

@@ -18,6 +18,7 @@ struct HelferTagebuch: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     if let b = bez { beziehung(b) }
+                    WochenRueckblick(tageMitEintrag: tage.filter { Date().timeIntervalSince($0.datum) < 7 * 86400 }.count)
                     if !selfies.isEmpty {
                         Text("📸 Unser Fotoalbum").font(.headline)
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -106,5 +107,68 @@ struct HelferTagebuch: View {
                 .sorted { $0.datum > $1.datum }
         }
         laedt = false
+    }
+}
+
+
+/// 📊 Wochenrückblick (Liste Nr. 10): was ihr in den letzten 7 Tagen zusammen gemacht habt
+@MainActor
+struct WochenRueckblick: View {
+    @EnvironmentObject private var studio: Studio
+    let tageMitEintrag: Int
+
+    private var woche: [Auftrag] {
+        let grenze = Date().timeIntervalSince1970 - 7 * 86400
+        return studio.stand.auftraege.filter { $0.fertig && ($0.finished ?? $0.created) >= grenze }
+    }
+
+    var body: some View {
+        let w = woche
+        let videos = w.filter { $0.hatVideo }.count
+        let bilder = w.filter { $0.bilderAnzahl > 0 && !$0.hatVideo }.count
+        let musik = w.filter { $0.istAudio }.count
+        let lieblinge = w.filter { $0.fav }
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("📊 Eure Woche").font(.headline)
+                Spacer()
+                Text(Date().addingTimeInterval(-6 * 86400).formatted(.dateTime.day().month(.abbreviated)) + " – heute")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                zahl(w.count, "fertig", "checkmark.seal.fill")
+                zahl(videos, "Videos", "film")
+                zahl(bilder, "Bilder", "photo")
+                zahl(musik, "Songs", "music.note")
+            }
+            Text(satz(w.count, tageMitEintrag, lieblinge.count)).font(.callout).foregroundStyle(.secondary)
+            if !lieblinge.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(lieblinge.prefix(8)) { a in BibliothekKachel(a: a).frame(width: 74, height: 74) }
+                    }
+                }
+            }
+        }
+        .karte()
+    }
+
+    private func zahl(_ n: Int, _ t: String, _ symbol: String) -> some View {
+        VStack(spacing: 3) {
+            Image(systemName: symbol).foregroundStyle(Farbe.akzent)
+            Text("\(n)").font(.title3.bold().monospacedDigit())
+            Text(t).font(.caption2).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 8)
+        .background(Farbe.karte, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func satz(_ fertig: Int, _ tage: Int, _ fav: Int) -> String {
+        if fertig == 0 && tage == 0 { return "Diese Woche war ruhig – lass uns was Schönes zusammen machen!" }
+        var t = fertig == 1 ? "Eine Sache ist fertig geworden" : "\(fertig) Sachen sind fertig geworden"
+        if tage > 0 { t += ", an \(tage) \(tage == 1 ? "Tag" : "Tagen") steht was in unserem Tagebuch" }
+        if fav > 0 { t += " – und \(fav) \(fav == 1 ? "Liebling" : "Lieblinge") sind dabei ❤" }
+        return t + "."
     }
 }

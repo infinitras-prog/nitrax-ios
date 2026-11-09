@@ -21,6 +21,9 @@ final class Dauergespraech: ObservableObject {
     let motor = AVAudioEngine()
     /// stumm geschaltet: Mikrofon wird ignoriert, die Engine (und damit die Stimme) läuft weiter
     var taub = false
+    /// 🔇 Echo-Sperre (Liste Nr. 2): wie laut ihre Stimme gerade aus dem Lautsprecher kommt (dBFS) – ins Wort fallen zählt nur,
+    /// wenn du deutlich lauter bist als ihr Echo
+    var echoDb: Float = -100
     /// 🗣 jeder Mikrofon-Puffer (Audio-Faden) – für die Live-Erkennung auf dem iPhone
     nonisolated(unsafe) var tonSenke: ((AVAudioPCMBuffer) -> Void)?
     /// Satz fängt an (Pegel über der Schwelle)
@@ -109,7 +112,7 @@ final class Dauergespraech: ObservableObject {
         case .lauscht:
             vorlauf.append(roh)
             if vorlauf.count > 4 { vorlauf.removeFirst() }
-            let grenze = helferRedet ? schwelleBargeIn : schwelle
+            let grenze = helferRedet ? max(schwelleBargeIn, echoDb + 9) : schwelle
             if db > grenze {
                 if sprichtSeit == nil { sprichtSeit = jetzt }
                 // während sie redet: erst nach 0,35 s lauter Sprache unterbrechen (kein Fehlalarm durch ihr Echo)
