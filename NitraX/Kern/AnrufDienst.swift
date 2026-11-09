@@ -245,7 +245,8 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private var stille = 0
     private var stimme: String?
     private var pcStimmeLangsam = 0
-    private let strom = StromSpieler()
+    private lazy var strom = StromSpieler(motor: ohr.motor)
+    private var fuellTon: Data?                          // »Mhm, Moment.« in IHRER Stimme (beim Abheben geholt)
     private var stromGeht = true
     private var stromLaeuft = false
     private var stromFehler = 0
@@ -293,13 +294,18 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
             var vor: [String: Any] = ["sprache": "German"]
             if let stimme, !stimme.isEmpty { vor["stimme"] = stimme }
             Task.detached { [client] in _ = try? await client.post("/api/anruf/vorbereiten", vor, zeit: 180) }
+            try? ohr.starten(sitzung: false)                 // erst Mikro + Engine, dann spricht sie über dieselbe Engine
             sagen([begruessung])
-            try? ohr.starten(sitzung: false)
+            Task { [weak self] in
+                try? await Task.sleep(for: .seconds(4))
+                guard let self, !self.aus else { return }
+                self.fuellTon = await self.pcTon("Mhm, Moment.")
+            }
         }
     }
 
     func stumm(_ an: Bool) {
-        if an { ohr.stoppen() } else if !aus { try? ohr.starten(sitzung: false) }
+        ohr.taub = an                                    // Mikro aus, ihre Stimme läuft weiter
     }
 
     func beenden() {
@@ -363,7 +369,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         var r = URLRequest(url: url)
         r.httpMethod = "POST"
         r.httpBody = daten
-        r.timeoutInterval = 20
+        r.timeoutInterval = 50                           // kalte Stimme braucht bis ~30 s – lieber warten als fremde Stimme
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         for (k, w) in client.cookieKopf { r.setValue(w, forHTTPHeaderField: k) }
         return r
@@ -377,7 +383,7 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         var r = URLRequest(url: url)
         r.httpMethod = "POST"
         r.httpBody = daten
-        r.timeoutInterval = ersterSatz ? 35 : 20
+        r.timeoutInterval = ersterSatz ? 60 : 40
         ersterSatz = false
         r.setValue("application/json", forHTTPHeaderField: "Content-Type")
         for (k, w) in client.cookieKopf { r.setValue(w, forHTTPHeaderField: k) }
@@ -451,7 +457,12 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         let fueller = Task { [weak self] in
             try? await Task.sleep(for: .seconds(2.2))
             guard let self, !Task.isCancelled, !self.redet else { return }
-            self.lokalSprechen(["Mhm, Moment.", "Mhm, lass mich kurz überlegen.", "Moment."].randomElement()!)
+            if let d = self.fuellTon, let p = try? AVAudioPlayer(data: d) {
+                p.isMeteringEnabled = true
+                p.delegate = self
+                self.spieler = p
+                p.play()
+            }
         }
         // Satz für Satz sprechen, sobald er fertig ist (nicht erst nach der ganzen Antwort)
         var ganz = "", gesprochen = 0

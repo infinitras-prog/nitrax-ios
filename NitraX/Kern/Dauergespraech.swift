@@ -17,7 +17,12 @@ final class Dauergespraech: ObservableObject {
     /// so lange Stille = Satz zu Ende (Telefonat: kürzer, damit die Antwort schneller kommt)
     var stilleEnde: TimeInterval = 0.85
 
-    private let motor = AVAudioEngine()
+    /// eine Engine für Mikrofon UND Helferstimme (Telefonat): zwei Engines würgten sich gegenseitig ab (09.11.2026)
+    let motor = AVAudioEngine()
+    /// stumm geschaltet: Mikrofon wird ignoriert, die Engine (und damit die Stimme) läuft weiter
+    var taub = false
+    private var sitzungMerk = true
+    private var beobachter: NSObjectProtocol?
     private var konverter: AVAudioConverter?
     private let ziel = AVAudioFormat(commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true)!
     private var puffer = Data()
@@ -34,8 +39,13 @@ final class Dauergespraech: ObservableObject {
     /// sitzung = false: Ton gehört schon jemand anderem (Telefonat über CallKit - Hörmuschel statt Lautsprecher)
     func starten(sitzung: Bool = true) throws {
         guard phase == .aus else { return }
+        sitzungMerk = sitzung
         if sitzung { HelferTon.einrichten() }
         let ein = motor.inputNode
+        if !sitzung {                                   // Telefonat: Echo-Unterdrückung wie beim echten Anruf
+            if !ein.isVoiceProcessingEnabled { try? ein.setVoiceProcessingEnabled(true) }
+        }
+        _ = motor.mainMixerNode                         // Ausgang anlegen (die Helferstimme spielt über dieselbe Engine)
         let format = ein.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else { throw NSError(domain: "NitraX", code: 3, userInfo: [NSLocalizedDescriptionKey: "Kein Mikrofon verfügbar"]) }
         konverter = AVAudioConverter(from: format, to: ziel)
@@ -49,6 +59,23 @@ final class Dauergespraech: ObservableObject {
         motor.prepare()
         try motor.start()
         phase = .lauscht
+        if beobachter == nil {
+            // iOS stoppt die Engine bei Umschalten Hörmuschel/Lautsprecher, Bluetooth usw. -> sofort neu starten
+            beobachter = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: motor, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.neuStarten() }
+            }
+        }
+    }
+
+    private func neuStarten() {
+        guard phase != .aus else { return }
+        let s = sitzungMerk
+        motor.inputNode.removeTap(onBus: 0)
+        motor.stop()
+        phase = .aus
+        puffer = Data(); vorlauf = []
+        sprichtSeit = nil; stilleSeit = nil; satzStart = nil
+        try? starten(sitzung: s)
     }
 
     func stoppen() {
@@ -64,6 +91,7 @@ final class Dauergespraech: ObservableObject {
 
     private func verarbeiten(_ roh: Data?, _ db: Float) {
         guard phase != .aus, let roh else { return }
+        if taub { pegel = 0; return }
         pegel = max(0, min(1, (db + 60) / 45))
         let jetzt = Date()
         let helferRedet = helferZustand == "sprechen"

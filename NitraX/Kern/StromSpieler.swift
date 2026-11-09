@@ -4,7 +4,7 @@ import AVFoundation
 /// Der erste Ton kommt ~0,3 s nach der Anfrage – statt erst, wenn der ganze Satz berechnet ist.
 @MainActor
 final class StromSpieler {
-    private let motor = AVAudioEngine()
+    private let motor: AVAudioEngine
     private let knoten = AVAudioPlayerNode()
     private var format: AVAudioFormat?
     private var aufgabe: Task<Bool, Never>?
@@ -12,7 +12,9 @@ final class StromSpieler {
     private var fertig: CheckedContinuation<Void, Never>?
     private(set) var pegel: Float = 0           // für die Anzeige (Helfer spricht)
 
-    init() {
+    /// motor = die Engine des Mikrofons (Dauergespraech.motor) – eine gemeinsame Engine für Hören und Sprechen
+    init(motor: AVAudioEngine) {
+        self.motor = motor
         motor.attach(knoten)
     }
 
@@ -67,8 +69,9 @@ final class StromSpieler {
                 guard rate >= 8000, rate <= 96000, (try? einrichten(rate)) != nil else { leser.cancel(); return false }
                 continue
             }
+            if !motor.isRunning { try? motor.start() }       // nach einem Neustart der Engine
             einplanen(d)
-            if !gespielt { knoten.play(); gespielt = true }
+            if !gespielt || !knoten.isPlaying { knoten.play(); gespielt = true }
         }
         let ok = await leser.value
         if Task.isCancelled { return true }
@@ -80,8 +83,7 @@ final class StromSpieler {
 
     private func einrichten(_ rate: Double) throws {
         let f = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false)!
-        if format?.sampleRate != rate {
-            motor.stop()
+        if format?.sampleRate != rate || motor.outputConnectionPoints(for: knoten, outputBus: 0).isEmpty {
             motor.disconnectNodeOutput(knoten)
             motor.connect(knoten, to: motor.mainMixerNode, format: f)
             format = f
