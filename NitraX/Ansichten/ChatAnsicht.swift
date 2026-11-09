@@ -103,6 +103,7 @@ struct ChatNachricht: Identifiable, Hashable {
     var werkzeuge: [String] = []
     var auftraege: [String] = []
     var code: [CodeSchritt] = []
+    var denken = ""
 }
 
 @MainActor
@@ -278,6 +279,8 @@ struct ChatAnsicht: View {
     @State private var modell = ""
     @State private var modelle: [ModellListe.Modell] = []
     @FocusState private var fokus: Bool
+    @State private var seit = Date()
+    @State private var verfolgen: Task<Void, Never>?
 
     private var art: ChatArt { ChatArt(kopf.art) }
 
@@ -290,15 +293,13 @@ struct ChatAnsicht: View {
                             leerHinweis
                         }
                         ForEach(nachrichten) { n in
-                            Blase(n: n, art: art, entscheiden: { s, e in Task { await entscheiden(s, e) } }).id(n.id)
+                            Blase(n: n, art: art, aktiv: laeuft && n.id == nachrichten.last?.id,
+                                  entscheiden: { s, e in Task { await entscheiden(s, e) } }).id(n.id)
                         }
-                        if laeuft && !status.isEmpty {
-                            HStack(spacing: 8) {
-                                TippPunkte()
-                                Text(status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
-                            }
-                            .padding(.leading, 40)
-                            .id("status")
+                        if laeuft {
+                            ArbeitsZeile(status: status.isEmpty ? "arbeitet …" : status, seit: seit, farbe: art.farben[0])
+                                .padding(.leading, 36)
+                                .id("status")
                         }
                     }
                     .padding(.horizontal, 14).padding(.vertical, 16)
@@ -339,7 +340,7 @@ struct ChatAnsicht: View {
             }
         }
         .task { await laden() }
-        .onDisappear { aufgabe?.cancel() }
+        .onDisappear { aufgabe?.cancel(); verfolgen?.cancel() }
     }
 
     private var leerHinweis: some View {
@@ -435,12 +436,34 @@ struct ChatAnsicht: View {
                           bilder: (n["bilder"]?.liste ?? []).compactMap { $0.text ?? $0["name"]?.text },
                           werkzeuge: (n["werkzeuge"]?.liste ?? []).compactMap { $0["name"]?.text },
                           auftraege: (n["auftraege"]?.liste ?? []).compactMap { $0.text },
-                          code: (n["code"]?.liste ?? []).compactMap(CodeSchritt.init))
+                          code: (n["code"]?.liste ?? []).compactMap(CodeSchritt.init),
+                          denken: n["denken"]?.text ?? "")
         }
         if let o = d["offen"], let s = CodeSchritt(o) { codeSchritt(s) }
-        if d["laeuft"]?.wahr == true { status = "Antwortet noch am PC …"; laeuft = true }
+        if d["laeuft"]?.wahr == true {
+            if !laeuft { seit = Date() }
+            laeuft = true
+            if status.isEmpty { status = "arbeitet am PC …" }
+            if let o = d["offen"], let s = CodeSchritt(o) { status = s.wartet ? "wartet auf deine Freigabe" : s.beschreibung }
+            nachverfolgen()
+        }
         modell = d["modell"]?.text ?? ""
-        modelle = await ModellListe.chat(c)
+        if modelle.isEmpty { modelle = await ModellListe.chat(c) }
+    }
+
+    /// Läuft die Antwort am PC, ohne dass dieses Gerät den Strom hält: alle 2 s den Stand holen, bis sie fertig ist
+    private func nachverfolgen() {
+        guard aufgabe == nil, verfolgen == nil else { return }
+        verfolgen = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard let c = studio.client, let d = try? await c.get("/api/chats/\(kopf.id)", JSONWert.self) else { continue }
+                let fertig = d["laeuft"]?.wahr != true
+                await laden()
+                if fertig { laeuft = false; status = ""; break }
+            }
+            verfolgen = nil
+        }
     }
 
     private func modellSetzen(_ m: String) async {
@@ -461,6 +484,8 @@ struct ChatAnsicht: View {
         nachrichten.append(ChatNachricht(rolle: "user", text: text, bilder: bilder))
         nachrichten.append(ChatNachricht(rolle: "assistant", text: ""))
         laeuft = true
+        seit = Date()
+        verfolgen?.cancel(); verfolgen = nil
         status = "denkt nach …"
         var body: [String: Any] = ["text": text, "bilder": bilder,
                                    "werkzeuge": ["bild": true, "gedaechtnis": true, "denken": "kurz", "web": true]]
@@ -475,6 +500,7 @@ struct ChatAnsicht: View {
             }
             laeuft = false
             status = ""
+            aufgabe = nil
             await studio.aktualisieren()
         }
     }
@@ -501,6 +527,12 @@ struct ChatAnsicht: View {
                 status = s.wartet ? "wartet auf deine Freigabe" : s.beschreibung
                 if s.wartet { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
             }
+        case "denken":
+            if var l = nachrichten.last, l.rolle == "assistant" {
+                l.denken += ev["d"]?.text ?? ""
+                nachrichten[nachrichten.count - 1] = l
+            }
+            status = "denkt nach …"
         case "status", "hinweis": status = ev["d"]?.text ?? status
         case "bild":
             if let n = ev["name"]?.text, var l = nachrichten.last, l.rolle == "assistant" {
@@ -532,7 +564,8 @@ struct ChatAnsicht: View {
         do {
             _ = try await c.post("/api/chats/\(kopf.id)/work", ["vid": vid, "entscheidung": e])
             var neu = s
-            neu.status = e == "ja" ? "läuft" : "abgelehnt"
+            neu.status = e == "nein" ? "abgelehnt" : "läuft"
+            if e == "immer" { studio.meldung = "✓ Dieser Chat fragt nicht mehr nach – Sperren und Ordnergrenze bleiben" }
             neu.vid = nil
             codeSchritt(neu)
         } catch { studio.meldung = error.localizedDescription }
@@ -550,6 +583,26 @@ struct ChatAnsicht: View {
         _ = try? await studio.client?.post("/api/chats/\(kopf.id)/stopp")
         aufgabe?.cancel()
         laeuft = false
+    }
+}
+
+/// »arbeitet«-Zeile: was gerade passiert + wie lange schon (damit man nie rätselt, ob überhaupt etwas läuft)
+struct ArbeitsZeile: View {
+    let status: String
+    let seit: Date
+    let farbe: Color
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { kontext in
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small).tint(farbe)
+                Text(status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Spacer(minLength: 4)
+                Text(Zeit.dauer(kontext.date.timeIntervalSince(seit))).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12).padding(.vertical, 8)
+            .background(Capsule().fill(Color.white.opacity(0.05)))
+            .overlay(Capsule().stroke(farbe.opacity(0.35), lineWidth: 1))
+        }
     }
 }
 
@@ -574,14 +627,17 @@ struct Blase: View {
     @EnvironmentObject private var navigation: Navigation
     var n: ChatNachricht
     var art: ChatArt = .chat
+    var aktiv = false
     var entscheiden: (CodeSchritt, String) -> Void = { _, _ in }
     @State private var schritteOffen = false
+    @State private var gedankenOffen = false
     var istIch: Bool { n.rolle == "user" }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             if istIch { Spacer(minLength: 48) } else { AgentKachel(art: art, groesse: 28).padding(.top, 2) }
             VStack(alignment: istIch ? .trailing : .leading, spacing: 8) {
+                if !n.denken.isEmpty { gedanken }
                 if !n.werkzeuge.isEmpty { werkzeugChips }
                 if !n.code.isEmpty { codeListe }
                 if !n.bilder.isEmpty {
@@ -634,6 +690,30 @@ struct Blase: View {
         }
     }
 
+    /// 💭 Gedanken des Modells: während es läuft die letzten Zeilen live, danach zum Aufklappen
+    private var gedanken: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Button { withAnimation { gedankenOffen.toggle() } } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "brain").foregroundStyle(art.farben[0])
+                    Text(aktiv ? "denkt …" : "Gedanken").font(.caption.weight(.semibold))
+                    if aktiv { TippPunkte() }
+                    Spacer()
+                    Image(systemName: gedankenOffen ? "chevron.up" : "chevron.down").font(.caption2).foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            if gedankenOffen || aktiv {
+                Text(gedankenOffen ? n.denken : String(n.denken.suffix(280)))
+                    .font(.caption2).italic().foregroundStyle(.secondary)
+                    .lineLimit(gedankenOffen ? nil : 4)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.white.opacity(0.04)))
+    }
+
     /// Werkzeug-Schritte als kompakte Chips (aufklappbar, wenn es viele sind)
     private var werkzeugChips: some View {
         let liste = schritteOffen ? n.werkzeuge : Array(n.werkzeuge.suffix(3))
@@ -657,7 +737,11 @@ struct Blase: View {
             ForEach(n.code) { s in
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 8) {
-                        Image(systemName: symbol(s.status)).foregroundStyle(farbe(s.status)).font(.caption)
+                        if s.status == "läuft" {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: symbol(s.status)).foregroundStyle(farbe(s.status)).font(.caption)
+                        }
                         Text(s.beschreibung).font(.caption.weight(.medium)).lineLimit(2)
                     }
                     if s.wartet {
@@ -672,6 +756,11 @@ struct Blase: View {
                             Button { entscheiden(s, "nein") } label: { Label("Ablehnen", systemImage: "xmark").font(.caption.weight(.semibold)) }
                                 .buttonStyle(.bordered).tint(Farbe.fehler)
                         }
+                        Button { entscheiden(s, "immer") } label: {
+                            Label("Für diese Sitzung immer erlauben", systemImage: "checkmark.seal.fill").font(.caption.weight(.semibold))
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered).tint(Farbe.gut)
                     }
                 }
                 .padding(10)

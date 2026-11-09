@@ -241,8 +241,10 @@ struct TutorialUebersicht: View {
 @MainActor
 struct WasIstNeu: View {
     @Environment(\.dismiss) private var dismiss
-    static let version = "0.5.30"
+    static let version = "0.5.31"
     static let punkte: [(String, String, String)] = [
+        ("checkmark.seal.fill", "Für diese Sitzung immer erlauben", "Der Code-Agent fragt in diesem Chat nicht mehr nach. Die harten Sperren (Löschen, System) und die Ordnergrenze bleiben."),
+        ("waveform.path", "Immer sehen, was passiert", "Gedanken live, laufender Schritt mit Zeit, Fortschritt auch nach dem Wiederöffnen eines laufenden Chats."),
         ("bubble.left.and.bubble.right.fill", "Chat neu gestaltet", "Drei Agenten oben zum Starten, Verlauf nach Tagen sortiert mit Filter und Suche, schönere Blasen und Beispiel-Ideen zum Antippen."),
         ("chevron.left.forwardslash.chevron.right", "Code-Agent auf dem iPhone", "Programmieren lassen oder NitraX erweitern – jeden Schritt bestätigst du direkt im Chat mit »Erlauben«."),
         ("music.note", "Musik-Player repariert", "Songs spielen wieder – jetzt als AAC vom PC, rund 8× weniger Daten unterwegs. Klappt ein Titel nicht, steht der Grund im Player."),
