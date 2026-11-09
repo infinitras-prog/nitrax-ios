@@ -1,12 +1,98 @@
 import SwiftUI
 import PhotosUI
 
+// 0.5.30: Chat neu gestaltet – drei Agenten oben (Workflow, Code, Chat), Verlauf nach Tagen sortiert mit Filter und Suche,
+// hochwertigere Blasen mit Agenten-Symbol, Werkzeug-Schritte als Chips, Code-Agent mit Freigabe direkt im Chat.
+
 struct ChatKopf: Decodable, Identifiable, Hashable {
     var id: String
     var titel: String
     var art: String
     var geaendert: Double?
     var laeuft: Bool?
+}
+
+/// Die drei Agenten (Aussehen und Texte an einer Stelle)
+enum ChatArt: String, CaseIterable, Identifiable {
+    case werkstatt, code, chat
+    var id: String { rawValue }
+
+    init(_ art: String) { self = ChatArt(rawValue: art) ?? .chat }
+
+    var name: String {
+        switch self { case .werkstatt: return "Workflow-Agent"; case .code: return "Code-Agent"; case .chat: return "Chat" }
+    }
+    var kurz: String {
+        switch self { case .werkstatt: return "Workflow"; case .code: return "Code"; case .chat: return "Chat" }
+    }
+    var untertitel: String {
+        switch self {
+        case .werkstatt: return "Videos, Bilder, Songs, Filme anlegen"
+        case .code: return "Programmieren & NitraX erweitern"
+        case .chat: return "Fragen, Ideen, Bilder"
+        }
+    }
+    var symbol: String {
+        switch self { case .werkstatt: return "wand.and.stars"; case .code: return "chevron.left.forwardslash.chevron.right"; case .chat: return "bubble.left.and.bubble.right.fill" }
+    }
+    var farben: [Color] {
+        switch self {
+        case .werkstatt: return [Farbe.akzent, Farbe.pink]
+        case .code: return [Farbe.mint, Farbe.info]
+        case .chat: return [Farbe.info, Farbe.pink]
+        }
+    }
+    var verlauf: LinearGradient { LinearGradient(colors: farben, startPoint: .topLeading, endPoint: .bottomTrailing) }
+    var platzhalter: String {
+        switch self { case .werkstatt: return "Was soll entstehen?"; case .code: return "Was soll programmiert werden?"; case .chat: return "Nachricht" }
+    }
+    var leerText: String {
+        switch self {
+        case .werkstatt: return "Beschreib, was entstehen soll – der Agent plant, startet die Workflows, wartet und bessert selbst nach."
+        case .code: return "Programmieren lassen – oder NitraX selbst erweitern: Sag einfach, was NitraX zusätzlich können soll. Er baut es sicher als Erweiterung. Jeden Schritt bestätigst du hier."
+        case .chat: return "Frag, was du willst – mit 📷 auch zu einem Bild."
+        }
+    }
+    var beispiele: [String] {
+        switch self {
+        case .werkstatt: return ["Mach aus meinem letzten Bild ein 10-s-Video mit Regen", "Erstell einen Song und ein Musikvideo dazu", "Ein Werbespot für Sneaker, 20 s, 9:16"]
+        case .code: return ["NitraX soll mir jeden Morgen 5 Bildideen vorschlagen", "Bau eine Seite mit Farbpaletten zu einem Stichwort", "Ein kleines Browserspiel mit meiner Figur"]
+        case .chat: return ["Gib mir 5 Ideen für ein Musikvideo", "Erklär mir den Unterschied zwischen LTX und Wan", "Schreib einen kurzen Songtext über Regen"]
+        }
+    }
+}
+
+/// Symbol-Kachel eines Agenten
+struct AgentKachel: View {
+    let art: ChatArt
+    var groesse: CGFloat = 38
+    var body: some View {
+        RoundedRectangle(cornerRadius: groesse * 0.3, style: .continuous)
+            .fill(art.verlauf)
+            .frame(width: groesse, height: groesse)
+            .overlay(Image(systemName: art.symbol).font(.system(size: groesse * 0.42, weight: .semibold)).foregroundStyle(.white))
+            .shadow(color: art.farben[0].opacity(0.35), radius: groesse * 0.2, y: groesse * 0.08)
+    }
+}
+
+/// Schritt des Code-Agenten (Datei schreiben, Befehl …) – mit Freigabe
+struct CodeSchritt: Identifiable, Hashable {
+    var id: Int { n }
+    var n: Int
+    var beschreibung: String
+    var status: String
+    var vid: String?
+    var details: String
+
+    init?(_ w: JSONWert) {
+        guard let n = w["n"]?.zahl else { return nil }
+        self.n = Int(n)
+        beschreibung = w["beschreibung"]?.text ?? w["werkzeug"]?.text ?? "Schritt"
+        status = w["status"]?.text ?? ""
+        vid = w["vid"]?.text
+        details = w["details"]?.text ?? w["grund"]?.text ?? ""
+    }
+    var wartet: Bool { status == "wartet" && vid != nil }
 }
 
 struct ChatNachricht: Identifiable, Hashable {
@@ -16,6 +102,7 @@ struct ChatNachricht: Identifiable, Hashable {
     var bilder: [String] = []
     var werkzeuge: [String] = []
     var auftraege: [String] = []
+    var code: [CodeSchritt] = []
 }
 
 @MainActor
@@ -24,48 +111,131 @@ struct ChatListeAnsicht: View {
     @State private var chats: [ChatKopf] = []
     @State private var pfad: [ChatKopf] = []
     @State private var laedt = false
+    @State private var filter = "alle"
+    @State private var suche = ""
+
+    private var sichtbar: [ChatKopf] {
+        chats.filter { ["werkstatt", "code", "chat"].contains($0.art) }
+            .filter { filter == "alle" || $0.art == filter }
+            .filter { suche.isEmpty || $0.titel.localizedCaseInsensitiveContains(suche) }
+            .sorted { ($0.geaendert ?? 0) > ($1.geaendert ?? 0) }
+    }
+
+    /// Verlauf nach Tagen: Heute, Gestern, Diese Woche, Älter
+    private var gruppen: [(String, [ChatKopf])] {
+        let k = Calendar.current
+        var g: [String: [ChatKopf]] = [:]
+        for c in sichtbar {
+            let d = Date(timeIntervalSince1970: c.geaendert ?? 0)
+            let name = k.isDateInToday(d) ? "Heute" : k.isDateInYesterday(d) ? "Gestern"
+                : (Date().timeIntervalSince(d) < 7 * 86400 ? "Diese Woche" : "Älter")
+            g[name, default: []].append(c)
+        }
+        return ["Heute", "Gestern", "Diese Woche", "Älter"].compactMap { n in g[n].map { (n, $0) } }
+    }
 
     var body: some View {
         NavigationStack(path: $pfad) {
             List {
                 Section {
-                    Button { Task { await neu("werkstatt") } } label: {
-                        Label("Neuer Auftrag an den Workflow-Agenten", systemImage: "wand.and.stars")
+                    HStack(spacing: 10) {
+                        ForEach(ChatArt.allCases) { a in
+                            Button { Task { await neu(a.rawValue) } } label: { agentKarte(a) }
+                                .buttonStyle(.plain)
+                        }
                     }
-                    Button { Task { await neu("chat") } } label: {
-                        Label("Neuer Chat", systemImage: "bubble.left.and.bubble.right")
-                    }
+                    .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
+                    .listRowBackground(Color.clear)
+                } header: {
+                    Text("Neu starten").font(.caption.weight(.semibold)).textCase(nil)
                 }
-                .listRowBackground(Farbe.karte)
-                Section("Verlauf") {
-                    ForEach(chats.filter { $0.art != "code" && $0.art != "desktop" && $0.art != "begleiter" }) { c in
-                        NavigationLink(value: c) {
-                            HStack {
-                                Image(systemName: c.art == "werkstatt" ? "wand.and.stars" : "bubble.left").foregroundStyle(Farbe.akzent)
-                                VStack(alignment: .leading) {
-                                    Text(c.titel).lineLimit(1)
-                                    if let g = c.geaendert, g > 0 {
-                                        Text(Date(timeIntervalSince1970: g), style: .relative).font(.caption).foregroundStyle(.secondary)
-                                    }
+
+                Section {
+                    Picker("Filter", selection: $filter) {
+                        Text("Alle").tag("alle")
+                        ForEach(ChatArt.allCases) { Text($0.kurz).tag($0.rawValue) }
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
+                }
+
+                if !laedt && sichtbar.isEmpty {
+                    Section {
+                        Text(suche.isEmpty ? "Noch keine Gespräche – oben einen Agenten wählen." : "Nichts gefunden.")
+                            .font(.subheadline).foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 18)
+                    }
+                    .listRowBackground(Color.clear)
+                }
+
+                ForEach(gruppen, id: \.0) { gruppe in
+                    Section {
+                        ForEach(gruppe.1) { c in
+                            NavigationLink(value: c) { zeile(c) }
+                                .listRowBackground(Farbe.karte)
+                                .swipeActions {
+                                    Button("Löschen", role: .destructive) { Task { await loeschen(c) } }
                                 }
-                                if c.laeuft == true { Spacer(); ProgressView().controlSize(.small) }
-                            }
                         }
-                        .swipeActions {
-                            Button("Löschen", role: .destructive) { Task { await loeschen(c) } }
-                        }
+                    } header: {
+                        Text(gruppe.0).font(.caption.weight(.semibold)).textCase(nil)
                     }
                 }
-                .listRowBackground(Farbe.karte)
             }
             .scrollContentBackground(.hidden)
             .nxHintergrund()
             .navigationTitle("Chat")
+            .searchable(text: $suche, prompt: "Gespräche durchsuchen")
             .navigationDestination(for: ChatKopf.self) { ChatAnsicht(kopf: $0) }
             .refreshable { await laden() }
             .task { await laden() }
             .overlay { if laedt && chats.isEmpty { ProgressView() } }
         }
+    }
+
+    private func agentKarte(_ a: ChatArt) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            AgentKachel(art: a, groesse: 34)
+            Text(a.name).font(.subheadline.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+            Text(a.untertitel).font(.caption2).foregroundStyle(.secondary).lineLimit(2, reservesSpace: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous).fill(Farbe.panel2.opacity(0.9))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(LinearGradient(colors: [a.farben[0].opacity(0.55), Farbe.rand.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing), lineWidth: 1))
+        )
+        .contentShape(Rectangle())
+    }
+
+    private func zeile(_ c: ChatKopf) -> some View {
+        let a = ChatArt(c.art)
+        return HStack(spacing: 12) {
+            AgentKachel(art: a, groesse: 36)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(c.titel).font(.subheadline.weight(.medium)).lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(a.name)
+                    if let g = c.geaendert, g > 0 {
+                        Text("·")
+                        Text(Date(timeIntervalSince1970: g), style: .relative)
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+            }
+            Spacer(minLength: 4)
+            if c.laeuft == true {
+                HStack(spacing: 4) {
+                    Circle().fill(Farbe.gut).frame(width: 7, height: 7)
+                    Text("läuft").font(.caption2.weight(.semibold))
+                }
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Farbe.gut.opacity(0.15), in: Capsule())
+                .foregroundStyle(Farbe.gut)
+            }
+        }
+        .padding(.vertical, 3)
     }
 
     private func laden() async {
@@ -80,7 +250,8 @@ struct ChatListeAnsicht: View {
         do {
             let r = try await c.post("/api/chats", ["art": art])
             guard let id = r["id"]?.text else { return }
-            let k = ChatKopf(id: id, titel: art == "werkstatt" ? "Neuer Auftrag" : "Neuer Chat", art: art)
+            let titel = art == "werkstatt" ? "Neuer Auftrag" : art == "code" ? "Neue Code-Aufgabe" : "Neuer Chat"
+            let k = ChatKopf(id: id, titel: titel, art: art, geaendert: Date().timeIntervalSince1970)
             chats.insert(k, at: 0)
             pfad = [k]
         } catch { studio.meldung = error.localizedDescription }
@@ -108,37 +279,54 @@ struct ChatAnsicht: View {
     @State private var modelle: [ModellListe.Modell] = []
     @FocusState private var fokus: Bool
 
+    private var art: ChatArt { ChatArt(kopf.art) }
+
     var body: some View {
         VStack(spacing: 0) {
             ScrollViewReader { leser in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 12) {
+                    LazyVStack(alignment: .leading, spacing: 14) {
                         if nachrichten.isEmpty && !laeuft {
                             leerHinweis
                         }
-                        ForEach(nachrichten) { n in Blase(n: n).id(n.id) }
+                        ForEach(nachrichten) { n in
+                            Blase(n: n, art: art, entscheiden: { s, e in Task { await entscheiden(s, e) } }).id(n.id)
+                        }
                         if laeuft && !status.isEmpty {
-                            Label(status, systemImage: "gearshape.2").font(.caption).foregroundStyle(.secondary).id("status")
+                            HStack(spacing: 8) {
+                                TippPunkte()
+                                Text(status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            }
+                            .padding(.leading, 40)
+                            .id("status")
                         }
                     }
-                    .padding(14)
+                    .padding(.horizontal, 14).padding(.vertical, 16)
                 }
+                .scrollDismissesKeyboard(.interactively)
                 .onChange(of: nachrichten) { _, _ in
-                    if let id = nachrichten.last?.id { withAnimation { leser.scrollTo(id, anchor: .bottom) } }
+                    if let id = nachrichten.last?.id { withAnimation(.easeOut(duration: 0.25)) { leser.scrollTo(id, anchor: .bottom) } }
                 }
             }
             eingabeLeiste
         }
         .nxHintergrund()
-        .navigationTitle(kopf.titel)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if laeuft {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Stopp", systemImage: "stop.circle") { Task { await stoppen() } }
+            ToolbarItem(placement: .principal) {
+                HStack(spacing: 8) {
+                    AgentKachel(art: art, groesse: 24)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(kopf.titel).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Text(laeuft ? "arbeitet …" : art.name).font(.caption2).foregroundStyle(laeuft ? Farbe.gut : .secondary)
+                    }
                 }
             }
-            // 🧠 Modell dieses Chats
+            if laeuft {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Stopp", systemImage: "stop.circle.fill") { Task { await stoppen() } }.tint(Farbe.fehler)
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Picker("Modell", selection: Binding(get: { modell }, set: { neu in Task { await modellSetzen(neu) } })) {
@@ -146,7 +334,7 @@ struct ChatAnsicht: View {
                         ForEach(modelle) { Text($0.zeile).tag($0.id) }
                     }
                 } label: {
-                    Label(modell.isEmpty ? "Modell" : modell, systemImage: "cpu")
+                    Image(systemName: "cpu")
                 }
             }
         }
@@ -155,14 +343,30 @@ struct ChatAnsicht: View {
     }
 
     private var leerHinweis: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(kopf.art == "werkstatt" ? "Workflow-Agent" : "Chat").font(.headline)
-            Text(kopf.art == "werkstatt"
-                 ? "Beschreib, was entstehen soll – z. B. »Mach aus diesem Foto ein 10-s-Video mit Regen« oder »Erstell einen Song und ein Musikvideo dazu«. Der Agent plant, startet die Workflows, wartet und bessert selbst nach."
-                 : "Frag, was du willst – mit 📷 auch zu einem Bild.")
-                .font(.subheadline).foregroundStyle(.secondary)
+        VStack(spacing: 14) {
+            AgentKachel(art: art, groesse: 64)
+                .padding(.top, 24)
+            Text(art.name).font(.title3.weight(.bold))
+            Text(art.leerText).font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
+            VStack(spacing: 8) {
+                ForEach(art.beispiele, id: \.self) { b in
+                    Button { eingabe = b; fokus = true } label: {
+                        HStack {
+                            Image(systemName: "sparkles").foregroundStyle(art.farben[0])
+                            Text(b).font(.footnote).multilineTextAlignment(.leading)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 10)
+                        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Farbe.panel2.opacity(0.85)))
+                        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Farbe.rand.opacity(0.6), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.top, 4)
         }
-        .karte()
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
     }
 
     private var eingabeLeiste: some View {
@@ -171,29 +375,41 @@ struct ChatAnsicht: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack {
                         ForEach(anhang, id: \.self) { n in
-                            NXBild(url: studio.bildURL(n)).frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 8))
+                            NXBild(url: studio.bildURL(n)).frame(width: 52, height: 52).clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(alignment: .topTrailing) {
+                                    Image(systemName: "xmark.circle.fill").font(.caption).foregroundStyle(.white, .black.opacity(0.6)).padding(2)
+                                }
                                 .onTapGesture { anhang.removeAll { $0 == n } }
                         }
                     }
                 }
             }
-            HStack(alignment: .bottom, spacing: 10) {
+            HStack(alignment: .bottom, spacing: 8) {
                 PhotosPicker(selection: $fotos, maxSelectionCount: 4, matching: .images) {
-                    Image(systemName: "photo.badge.plus").font(.title3)
+                    Image(systemName: "plus").font(.system(size: 17, weight: .semibold))
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(Color.white.opacity(0.08)))
                 }
-                TextField(kopf.art == "werkstatt" ? "Was soll entstehen?" : "Nachricht", text: $eingabe, axis: .vertical)
-                    .lineLimit(1...6)
-                    .focused($fokus)
-                    .padding(.horizontal, 12).padding(.vertical, 9)
-                    .background(RoundedRectangle(cornerRadius: 18).fill(Color.white.opacity(0.08)))
-                DiktierKnopf(text: $eingabe).padding(.bottom, 6)
+                HStack(alignment: .bottom, spacing: 4) {
+                    TextField(art.platzhalter, text: $eingabe, axis: .vertical)
+                        .lineLimit(1...6)
+                        .focused($fokus)
+                        .padding(.vertical, 9)
+                    DiktierKnopf(text: $eingabe).padding(.bottom, 6)
+                }
+                .padding(.leading, 14).padding(.trailing, 8)
+                .background(RoundedRectangle(cornerRadius: 20, style: .continuous).fill(Color.white.opacity(0.07)))
+                .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(fokus ? art.farben[0].opacity(0.6) : Farbe.rand.opacity(0.6), lineWidth: 1))
                 Button { senden() } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 32)).foregroundStyle(Farbe.verlauf)
+                    Image(systemName: "arrow.up").font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(Circle().fill(art.verlauf))
+                        .opacity(leer ? 0.4 : 1)
                 }
-                .disabled(eingabe.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && anhang.isEmpty)
+                .disabled(leer)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 10)
         .background(.ultraThinMaterial)
         .onChange(of: fotos) { _, items in
             guard !items.isEmpty, let c = studio.client else { return }
@@ -210,14 +426,18 @@ struct ChatAnsicht: View {
         }
     }
 
+    private var leer: Bool { eingabe.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && anhang.isEmpty }
+
     private func laden() async {
         guard let c = studio.client, let d = try? await c.get("/api/chats/\(kopf.id)", JSONWert.self) else { return }
         nachrichten = (d["nachrichten"]?.liste ?? []).map { n in
             ChatNachricht(rolle: n["rolle"]?.text ?? "assistant", text: n["text"]?.text ?? "",
                           bilder: (n["bilder"]?.liste ?? []).compactMap { $0.text ?? $0["name"]?.text },
                           werkzeuge: (n["werkzeuge"]?.liste ?? []).compactMap { $0["name"]?.text },
-                          auftraege: (n["auftraege"]?.liste ?? []).compactMap { $0.text })
+                          auftraege: (n["auftraege"]?.liste ?? []).compactMap { $0.text },
+                          code: (n["code"]?.liste ?? []).compactMap(CodeSchritt.init))
         }
+        if let o = d["offen"], let s = CodeSchritt(o) { codeSchritt(s) }
         if d["laeuft"]?.wahr == true { status = "Antwortet noch am PC …"; laeuft = true }
         modell = d["modell"]?.text ?? ""
         modelle = await ModellListe.chat(c)
@@ -237,6 +457,7 @@ struct ChatAnsicht: View {
         eingabe = ""
         anhang = []
         fokus = false
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
         nachrichten.append(ChatNachricht(rolle: "user", text: text, bilder: bilder))
         nachrichten.append(ChatNachricht(rolle: "assistant", text: ""))
         laeuft = true
@@ -274,6 +495,12 @@ struct ChatAnsicht: View {
                 l.werkzeuge.append(d)
                 nachrichten[nachrichten.count - 1] = l
             }
+        case "code":
+            if let w = ev["d"], let s = CodeSchritt(w) {
+                codeSchritt(s)
+                status = s.wartet ? "wartet auf deine Freigabe" : s.beschreibung
+                if s.wartet { UINotificationFeedbackGenerator().notificationOccurred(.warning) }
+            }
         case "status", "hinweis": status = ev["d"]?.text ?? status
         case "bild":
             if let n = ev["name"]?.text, var l = nachrichten.last, l.rolle == "assistant" {
@@ -288,6 +515,27 @@ struct ChatAnsicht: View {
         case "fehler": anhaengen("\n\n⚠ " + (ev["d"]?.text ?? "Fehler"))
         default: break
         }
+    }
+
+    /// Code-Schritt in die letzte Antwort einsortieren (gleiche Nummer = aktualisieren)
+    private func codeSchritt(_ s: CodeSchritt) {
+        guard var l = nachrichten.last, l.rolle == "assistant" else {
+            nachrichten.append(ChatNachricht(rolle: "assistant", text: "", code: [s]))
+            return
+        }
+        if let i = l.code.firstIndex(where: { $0.n == s.n }) { l.code[i] = s } else { l.code.append(s) }
+        nachrichten[nachrichten.count - 1] = l
+    }
+
+    private func entscheiden(_ s: CodeSchritt, _ e: String) async {
+        guard let c = studio.client, let vid = s.vid else { return }
+        do {
+            _ = try await c.post("/api/chats/\(kopf.id)/work", ["vid": vid, "entscheidung": e])
+            var neu = s
+            neu.status = e == "ja" ? "läuft" : "abgelehnt"
+            neu.vid = nil
+            codeSchritt(neu)
+        } catch { studio.meldung = error.localizedDescription }
     }
 
     private func anhaengen(_ t: String) {
@@ -305,51 +553,152 @@ struct ChatAnsicht: View {
     }
 }
 
+/// drei pulsierende Punkte (»schreibt …«)
+struct TippPunkte: View {
+    @State private var an = false
+    var body: some View {
+        HStack(spacing: 4) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle().fill(Color.secondary).frame(width: 6, height: 6)
+                    .opacity(an ? 1 : 0.3)
+                    .animation(.easeInOut(duration: 0.6).repeatForever().delay(Double(i) * 0.2), value: an)
+            }
+        }
+        .onAppear { an = true }
+    }
+}
+
 @MainActor
 struct Blase: View {
     @EnvironmentObject private var studio: Studio
     @EnvironmentObject private var navigation: Navigation
     var n: ChatNachricht
+    var art: ChatArt = .chat
+    var entscheiden: (CodeSchritt, String) -> Void = { _, _ in }
+    @State private var schritteOffen = false
     var istIch: Bool { n.rolle == "user" }
 
     var body: some View {
-        HStack {
-            if istIch { Spacer(minLength: 40) }
-            VStack(alignment: .leading, spacing: 8) {
-                if !n.werkzeuge.isEmpty {
-                    VStack(alignment: .leading, spacing: 3) {
-                        ForEach(Array(n.werkzeuge.suffix(6).enumerated()), id: \.offset) { _, w in
-                            Text(w).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
-                        }
-                    }
-                }
+        HStack(alignment: .top, spacing: 8) {
+            if istIch { Spacer(minLength: 48) } else { AgentKachel(art: art, groesse: 28).padding(.top, 2) }
+            VStack(alignment: istIch ? .trailing : .leading, spacing: 8) {
+                if !n.werkzeuge.isEmpty { werkzeugChips }
+                if !n.code.isEmpty { codeListe }
                 if !n.bilder.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
                             ForEach(n.bilder, id: \.self) { b in
-                                NXBild(url: studio.bildURL(b)).frame(width: 140, height: 140).clipShape(RoundedRectangle(cornerRadius: 12))
+                                NXBild(url: studio.bildURL(b)).frame(width: 150, height: 150).clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                             }
                         }
                     }
                 }
                 if !n.text.isEmpty {
-                    Text(LocalizedStringKey(n.text)).textSelection(.enabled)
-                } else if !istIch && n.werkzeuge.isEmpty {
-                    ProgressView().controlSize(.small)
+                    Text(LocalizedStringKey(n.text))
+                        .font(.body)
+                        .textSelection(.enabled)
+                        .padding(.horizontal, 14).padding(.vertical, 10)
+                        .foregroundStyle(istIch ? Color.white : Color.primary)
+                        .background(blasenHintergrund)
+                } else if !istIch && n.werkzeuge.isEmpty && n.code.isEmpty {
+                    TippPunkte().padding(.horizontal, 14).padding(.vertical, 12).background(blasenHintergrund)
                 }
                 ForEach(n.auftraege, id: \.self) { id in
                     Button { navigation.oeffne(auftrag: id) } label: {
-                        Label(studio.stand.auftraege.first(where: { $0.id == id }).map { "\($0.artName): \(standText($0))" } ?? "Auftrag öffnen",
-                              systemImage: "arrow.up.forward.square")
-                            .font(.caption.weight(.semibold))
+                        HStack(spacing: 8) {
+                            Image(systemName: "sparkles.rectangle.stack").foregroundStyle(Farbe.akzent)
+                            Text(studio.stand.auftraege.first(where: { $0.id == id }).map { "\($0.artName): \(standText($0))" } ?? "Auftrag öffnen")
+                                .font(.caption.weight(.semibold)).lineLimit(1)
+                            Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12).padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Farbe.panel2))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(Farbe.akzent.opacity(0.35), lineWidth: 1))
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
                 }
             }
-            .padding(12)
-            .background(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(istIch ? AnyShapeStyle(Farbe.verlauf) : AnyShapeStyle(Farbe.karte)))
-            if !istIch { Spacer(minLength: 24) }
+            if !istIch { Spacer(minLength: 20) }
+        }
+    }
+
+    @ViewBuilder private var blasenHintergrund: some View {
+        if istIch {
+            UnevenRoundedRectangle(topLeadingRadius: 20, bottomLeadingRadius: 20, bottomTrailingRadius: 6, topTrailingRadius: 20, style: .continuous)
+                .fill(art.verlauf)
+        } else {
+            UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 20, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous)
+                .fill(Farbe.panel2.opacity(0.92))
+                .overlay(UnevenRoundedRectangle(topLeadingRadius: 6, bottomLeadingRadius: 20, bottomTrailingRadius: 20, topTrailingRadius: 20, style: .continuous)
+                    .stroke(Farbe.rand.opacity(0.7), lineWidth: 1))
+        }
+    }
+
+    /// Werkzeug-Schritte als kompakte Chips (aufklappbar, wenn es viele sind)
+    private var werkzeugChips: some View {
+        let liste = schritteOffen ? n.werkzeuge : Array(n.werkzeuge.suffix(3))
+        return VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(liste.enumerated()), id: \.offset) { _, w in
+                Text(w).font(.caption2).lineLimit(1)
+                    .padding(.horizontal, 8).padding(.vertical, 4)
+                    .background(Capsule().fill(Color.white.opacity(0.06)))
+                    .foregroundStyle(.secondary)
+            }
+            if n.werkzeuge.count > 3 {
+                Button(schritteOffen ? "Weniger" : "+ \(n.werkzeuge.count - 3) weitere Schritte") { withAnimation { schritteOffen.toggle() } }
+                    .font(.caption2.weight(.semibold)).tint(art.farben[0])
+            }
+        }
+    }
+
+    /// Code-Agent: Schritte mit Status, wartende mit Freigabe
+    private var codeListe: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(n.code) { s in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Image(systemName: symbol(s.status)).foregroundStyle(farbe(s.status)).font(.caption)
+                        Text(s.beschreibung).font(.caption.weight(.medium)).lineLimit(2)
+                    }
+                    if s.wartet {
+                        if !s.details.isEmpty {
+                            Text(s.details).font(.caption2.monospaced()).foregroundStyle(.secondary).lineLimit(8)
+                                .padding(8).frame(maxWidth: .infinity, alignment: .leading)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(Color.black.opacity(0.3)))
+                        }
+                        HStack(spacing: 8) {
+                            Button { entscheiden(s, "ja") } label: { Label("Erlauben", systemImage: "checkmark").font(.caption.weight(.semibold)) }
+                                .buttonStyle(.borderedProminent).tint(Farbe.gut)
+                            Button { entscheiden(s, "nein") } label: { Label("Ablehnen", systemImage: "xmark").font(.caption.weight(.semibold)) }
+                                .buttonStyle(.bordered).tint(Farbe.fehler)
+                        }
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(s.wartet ? Farbe.akzent.opacity(0.12) : Color.white.opacity(0.04)))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).strokeBorder(s.wartet ? Farbe.akzent.opacity(0.5) : Color.clear, lineWidth: 1))
+            }
+        }
+    }
+
+    private func symbol(_ st: String) -> String {
+        switch st {
+        case "ausgeführt": return "checkmark.circle.fill"
+        case "läuft": return "arrow.triangle.2.circlepath"
+        case "wartet", "vorschau": return "hand.raised.fill"
+        case "abgelehnt", "gesperrt", "gestoppt": return "xmark.octagon.fill"
+        case "fehler": return "exclamationmark.triangle.fill"
+        default: return "circle.dotted"
+        }
+    }
+
+    private func farbe(_ st: String) -> Color {
+        switch st {
+        case "ausgeführt": return Farbe.gut
+        case "wartet", "vorschau", "läuft": return Farbe.akzent
+        case "abgelehnt", "gesperrt", "gestoppt", "fehler": return Farbe.fehler
+        default: return .secondary
         }
     }
 }

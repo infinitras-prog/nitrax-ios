@@ -241,8 +241,10 @@ struct TutorialUebersicht: View {
 @MainActor
 struct WasIstNeu: View {
     @Environment(\.dismiss) private var dismiss
-    static let version = "0.5.29"
+    static let version = "0.5.30"
     static let punkte: [(String, String, String)] = [
+        ("bubble.left.and.bubble.right.fill", "Chat neu gestaltet", "Drei Agenten oben zum Starten, Verlauf nach Tagen sortiert mit Filter und Suche, schönere Blasen und Beispiel-Ideen zum Antippen."),
+        ("chevron.left.forwardslash.chevron.right", "Code-Agent auf dem iPhone", "Programmieren lassen oder NitraX erweitern – jeden Schritt bestätigst du direkt im Chat mit »Erlauben«."),
         ("music.note", "Musik-Player repariert", "Songs spielen wieder – jetzt als AAC vom PC, rund 8× weniger Daten unterwegs. Klappt ein Titel nicht, steht der Grund im Player."),
         ("puzzlepiece.extension.fill", "NitraX selbst erweitern", "Im Code-Agenten einfach schreiben, was NitraX zusätzlich können soll – er baut es sicher als Erweiterung (eigener Ordner, geprüft, mit Rückgängig)."),
         ("globe", "NitraX auf Englisch", "Ist dein iPhone auf Englisch gestellt, spricht die App Englisch – oder einzeln: iOS-Einstellungen → NitraX → Sprache."),
