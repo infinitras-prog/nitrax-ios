@@ -199,6 +199,7 @@ extension AnrufDienst: CXProviderDelegate {
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         Task { @MainActor in
+            Musikspieler.shared.pause()
             let s = AVAudioSession.sharedInstance()
             try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])   // Hörmuschel wie beim Telefonieren
             self.lautsprecher = false
@@ -211,6 +212,7 @@ extension AnrufDienst: CXProviderDelegate {
 
     nonisolated func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         Task { @MainActor in
+            Musikspieler.shared.pause()
             let s = AVAudioSession.sharedInstance()
             try? s.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
             provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: Date())
@@ -506,6 +508,9 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
         Task.detached { _ = try? await c.post("/api/begleiter/anrufprotokoll", ["zeilen": zeilen, "version": version], zeit: 20) }
         Task { @MainActor in try? await Task.sleep(for: .seconds(3)); await Stimmvorrat.auffuellen(c) }
         ohr.stoppen()
+        stromAbbruch = true
+        for p in stromSpieler { p.stop() }
+        stromSpieler = []
         spieler?.stop()
         spieler = nil
         lokal.stopSpeaking(at: .immediate)
@@ -516,6 +521,17 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
     private func stillSein() {
         for e in warteschlange { e.ton.cancel() }
         warteschlange.removeAll()
+        stromSatz = nil
+        if !stromSpieler.isEmpty {                              // ⚡ laufender Strom: alle Stücke weich aus
+            stromAbbruch = true
+            unterbrochen = true
+            let alle = stromSpieler
+            for p in alle { p.setVolume(0, fadeDuration: 0.15) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) { for p in alle { p.stop() } }
+            stromSpieler = []
+            spieler = nil
+            laedt = false
+        }
         if let p = spieler {                                  // weich ausblenden statt hart abschneiden
             unterbrochen = true
             p.setVolume(0, fadeDuration: 0.18)
@@ -534,16 +550,106 @@ final class AnrufGespraech: NSObject, AVAudioPlayerDelegate, AVSpeechSynthesizer
 
     private func sagen(_ saetze: [String]) {
         for s in saetze.map({ $0.trimmingCharacters(in: .whitespacesAndNewlines) }) where s.count > 1 {
+            // ⚡ Runde 3, Nr. 1 (Schalter, experimentell): ist gerade Stille, spielt der erste Satz schon ab dem ersten Wort
+            if UserDefaults.standard.bool(forKey: "stimme_strom"), stromGeht, !redet, warteschlange.isEmpty, stromSatz == nil,
+               Stimmvorrat.daten(s, stimme) == nil {
+                stromSatz = s
+                warteschlange.append((s, Task<Data?, Never> { nil }))
+                continue
+            }
             let t = Task { [weak self] () -> Data? in await self?.tonHolen(s) }           // sofort laden (parallel zum Sprechen)
             warteschlange.append((s, t))
         }
         if !redet { Task { await naechster() } }
     }
 
+    // MARK: ⚡ Stimme als Strom: Stück für Stück abspielen, während der PC noch rechnet
+
+    private var stromSatz: String?
+    private var stromSpieler: [AVAudioPlayer] = []
+    private var stromAbbruch = false
+
+    private func stromSpielen(_ satz: String) async {
+        guard let anfrage = stromAnfrage(satz) else { lokalSprechen(satz); return }
+        stromAbbruch = false
+        stromSpieler = []
+        laedt = true
+        let t0 = Date()
+        var rate: UInt32 = 0, kopf = Data(), puffer = Data(), ganz = Data()
+        var naechsteZeit: TimeInterval = 0
+        var gestartet = false
+        func teil(_ pcm: Data) {
+            guard let p = try? AVAudioPlayer(data: Self.wav(pcm: pcm, rate: rate)) else { return }
+            p.isMeteringEnabled = true
+            p.prepareToPlay()
+            let start = max(p.deviceCurrentTime + 0.03, naechsteZeit)
+            p.play(atTime: start)
+            naechsteZeit = start + p.duration
+            stromSpieler.append(p)
+            if spieler == nil { spieler = p }
+            if !gestartet {
+                gestartet = true
+                laedt = false
+                untertitel?(satz, true)
+                log(String(format: "Stimme (Strom, Stück für Stück) erster Ton nach %.2f s", Date().timeIntervalSince(t0)))
+            }
+        }
+        do {
+            let (bytes, resp) = try await URLSession.shared.bytes(for: anfrage)
+            guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+            for try await b in bytes {
+                if aus || stromAbbruch { break }
+                if rate == 0 {
+                    kopf.append(b)
+                    if kopf.count == 4 {
+                        rate = kopf.withUnsafeBytes { $0.loadUnaligned(as: UInt32.self) }
+                        guard rate >= 8000 && rate <= 96000 else { throw URLError(.cannotDecodeContentData) }
+                    }
+                    continue
+                }
+                puffer.append(b)
+                ganz.append(b)
+                if puffer.count >= Int(rate) * 2 * (gestartet ? 7 : 4) / 10, puffer.count % 2 == 0 {   // erst 0,4 s, dann 0,7-s-Stücke
+                    teil(puffer)
+                    puffer = Data()
+                    if let p = stromSpieler.first(where: { $0.isPlaying }) { spieler = p }
+                }
+            }
+            if !puffer.isEmpty && !stromAbbruch && !aus { teil(puffer) }
+        } catch {
+            log("Stimme (Strom) Fehler: \(error.localizedDescription)")
+        }
+        guard !aus, !stromAbbruch else { return }
+        if !gestartet {                                         // Strom kam nicht: wie bisher (ganzer Satz bzw. iPhone-Stimme)
+            laedt = false
+            stromGeht = false
+            untertitel?(satz, true)
+            if let d = await pcTon(satz), let p = try? AVAudioPlayer(data: d) {
+                p.isMeteringEnabled = true; p.delegate = self; spieler = p; p.play()
+            } else { lokalSprechen(satz) }
+            return
+        }
+        // warten, bis das letzte Stück verklungen ist (der Mund folgt dem gerade spielenden Stück)
+        while !aus, !stromAbbruch, let letzter = stromSpieler.last, letzter.deviceCurrentTime < naechsteZeit - 0.02 {
+            if let p = stromSpieler.first(where: { $0.isPlaying }) { spieler = p }
+            try? await Task.sleep(for: .milliseconds(40))
+        }
+        guard !aus, !stromAbbruch else { return }
+        if rate > 0, ganz.count > 2000 { Stimmvorrat.merken(Self.wav(pcm: ganz, rate: rate), satz, stimme) }
+        stromSpieler = []
+        spieler = nil
+        await naechster()
+    }
+
     private func naechster() async {
         guard !aus, !warteschlange.isEmpty else { if !redet { ohr.helferZustand = "ruhe" }; return }
         let (satz, holen) = warteschlange.removeFirst()
         ohr.helferZustand = "sprechen"
+        if satz == stromSatz {                                  // ⚡ Strom-Satz: Stück für Stück
+            stromSatz = nil
+            await stromSpielen(satz)
+            return
+        }
         laedt = true
         let tTon = Date()
         let ton = await holen.value

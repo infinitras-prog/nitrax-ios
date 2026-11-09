@@ -7,6 +7,9 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         Benachrichtigungen.kategorienEinrichten()
         AnrufDienst.shared.starten()                   // 📞 Helfer-Anrufe (VoIP)
         Fehlerbericht.shared.starten()                 // 🧾 Fehler + Abstürze sammeln
+        Netzlage.shared.starten()                      // 📶 Sparmodus (Mobilfunk erkennen)
+        OrtsRoutinen.shared.starten()                  // 📍 Heimkommen/Losfahren (weckt die App im Hintergrund)
+        Gemeinsam.defaults.set(UIDevice.current.name, forKey: "geraet_name")
         return true
     }
 
@@ -128,6 +131,7 @@ struct NitraXApp: App {
             .onOpenURL { url in
                 // nitrax://auftrag/<id> (Widget) oder ein QR-Link http(s)://…/?k=…
                 if url.scheme == "nitrax", url.host == "auftrag" { navigation.oeffne(auftrag: url.lastPathComponent) }
+                else if url.scheme == "nitrax", url.host == "anrufen" { AnrufDienst.shared.anrufen(video: url.query?.contains("video=1") == true) }
                 else if url.scheme == "nitrax", url.host == "helfer" {
                     navigation.reiter = .helfer
                     if url.query?.contains("hoeren=1") == true { navigation.helferZuhoeren = true }
@@ -148,6 +152,12 @@ struct NitraXApp: App {
                     navigation.helferZuhoeren = true
                 }
                 Benachrichtigungen.erlaubnisHolen()
+                // 📞 Widget »Anrufen«
+                let a = Gemeinsam.defaults.double(forKey: "anruf_oeffnen")
+                if a > 0, Date().timeIntervalSince1970 - a < 30 {
+                    Gemeinsam.defaults.removeObject(forKey: "anruf_oeffnen")
+                    Task { try? await Task.sleep(for: .milliseconds(600)); AnrufDienst.shared.anrufen() }
+                }
             case .background:
                 studio.anhalten()
                 sperre.hintergrund()

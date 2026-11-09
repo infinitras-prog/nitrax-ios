@@ -89,6 +89,7 @@ struct WorkflowFormular: View {
     @State private var startZeit = Date()
     @State private var fehler: String?
     @ObservedObject private var uploads = UploadStand.shared
+    @State private var varianten = 1                    // 🎲 mehrere auf einmal (Runde 3, Nr. 5)
 
     var body: some View {
         Form {
@@ -101,6 +102,14 @@ struct WorkflowFormular: View {
                 } header: {
                     if f.art != "schalter" { Text(f.label + (f.pflicht ? " *" : "")) }
                 }
+            }
+            Section {
+                Stepper(value: $varianten, in: 1...4) {
+                    Label(varianten == 1 ? "Eine Variante" : "\(varianten) Varianten auf einmal – danach vergleichen", systemImage: "square.grid.2x2")
+                        .font(.subheadline)
+                }
+            } footer: {
+                if varianten > 1 { Text("Gleiche Eingaben, jedes Mal ein anderer Zufall. Die Rechenzeit vervielfacht sich.") }
             }
             Section {
                 SchaetzungZeile(wf: workflow.id, laenge: ["laenge", "sekunden", "dauer"].lazy.compactMap { werte[$0]?.zahl }.first)   // ⏱
@@ -214,6 +223,15 @@ struct WorkflowFormular: View {
             var felder: [String: Any] = [:]
             for (k, v) in werte { felder[k] = v.alsAny }
             let r = try await c.post("/api/handy/start", ["wf": workflow.id, "felder": felder], zeit: 900)
+            if varianten > 1 {                                                  // 🎲 weitere Varianten, danach vergleichen
+                var ids = (r["auftraege"]?.liste ?? []).compactMap(\.text)
+                for _ in 1..<varianten {
+                    if let w = try? await c.post("/api/handy/start", ["wf": workflow.id, "felder": felder], zeit: 900) {
+                        ids += (w["auftraege"]?.liste ?? []).compactMap(\.text)
+                    }
+                }
+                VergleichGruppen.neu(name: workflow.name, ids: ids)
+            }
             merken()
             Gemeinsam.defaults.removeObject(forKey: entwurfSchluessel)          // gestartet -> Entwurf erledigt
             let text = r["meldung"]?.text?.components(separatedBy: "\n").first ?? "Gestartet"

@@ -162,6 +162,16 @@ final class Studio: ObservableObject {
         Task { await Push.anmelden() }
     }
 
+    /// 🔐 neuer Schlüssel (»Schlüssel erneuern«): dieses iPhone bleibt verbunden
+    func schluesselSetzen(_ k: String) {
+        guard var v = verbindung else { return }
+        v.schluessel = k
+        v.speichern()
+        verbindung = v
+        client = NXClient(v)
+        starten()
+    }
+
     func trennen() {
         anhalten()
         Verbindung.loeschen()
@@ -236,6 +246,7 @@ final class Studio: ObservableObject {
                 vorratGeprueft = true
                 Task { await Stimmvorrat.auffuellen(c) }                       // 👋 Begrüßungen in ihrer Stimme
                 Task { await Selbsttest.shared.nachUpdate(c, studio: self) }   // 🧪 einmal je neuer App-Version
+                Task { await Ruhezeit.holen(c) }                                // 🌙 Stand vom PC
             }
             Task { await Fehlerbericht.shared.senden(c) }                       // 🧾 gesammelte Fehler an den PC (höchstens alle 2 min)
             if Postausgang.anzahl > 0 {                                         // 📮 gemerkte Aufträge starten
@@ -258,7 +269,8 @@ final class Studio: ObservableObject {
                 }
                 await selfieFuersWidget(c)
             }
-            OfflineGalerie.shared.abgleichen(s, client: c)
+            if !Netzlage.sparen { OfflineGalerie.shared.abgleichen(s, client: c) }   // 📶 unterwegs nichts vorladen
+            Task { await KalenderDienst.shared.abgleichen() }                   // 📅 (höchstens alle 20 min)
         } catch {
             erreichbar = false
         }
@@ -362,9 +374,10 @@ final class Studio: ObservableObject {
 
     func url(_ pfad: String) -> URL? { client?.url(pfad) }
     func bildURL(_ name: String) -> URL? { url("/api/image/" + (name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name)) }
+    /// Vorschaubild (📶 im Sparmodus verkleinert vom PC)
     func vorschauURL(_ a: Auftrag) -> URL? {
-        if a.bilderAnzahl > 0 { return url("/api/img/file/\(a.id)/0") }
-        if let i = a.image, !i.isEmpty { return bildURL(i) }
+        if a.bilderAnzahl > 0 { return Netzlage.klein(url("/api/img/file/\(a.id)/0")) }
+        if let i = a.image, !i.isEmpty { return Netzlage.klein(bildURL(i)) }
         return nil
     }
 }

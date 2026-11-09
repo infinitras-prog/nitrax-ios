@@ -199,5 +199,6 @@ struct NitraXWidgets: WidgetBundle {
         HelferWidget()
         AuftragLiveWidget()
         HelferSteuerung()
+        SteuerWidget()
     }
 }

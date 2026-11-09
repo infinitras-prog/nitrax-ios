@@ -12,6 +12,22 @@ struct EinstellungenAnsicht: View {
     @AppStorage("faceid_an") private var faceID = false
     @AppStorage("fertig_klang") private var fertigKlang = true
     @AppStorage("echo_aec") private var echoAEC = false
+    @AppStorage("stimme_strom") private var stimmeStrom = false
+    @AppStorage("spar_modus") private var sparModus = "auto"
+    @State private var ruheAn = Ruhezeit.an
+    @State private var ruheVon = EinstellungenAnsicht.datum(Ruhezeit.von)
+    @State private var ruheBis = EinstellungenAnsicht.datum(Ruhezeit.bis)
+
+    static func datum(_ s: String) -> Date {
+        let t = s.split(separator: ":").compactMap { Int($0) }
+        return Calendar.current.date(bySettingHour: t.first ?? 22, minute: t.count > 1 ? t[1] : 0, second: 0, of: Date()) ?? Date()
+    }
+    static func text(_ d: Date) -> String { d.formatted(.dateTime.hour(.twoDigits(amPM: .omitted)).minute(.twoDigits)) }
+
+    private func ruheSpeichern() {
+        Ruhezeit.setzen(an: ruheAn, von: Self.text(ruheVon), bis: Self.text(ruheBis))
+        if let c = studio.client { Task { await Ruhezeit.senden(c) } }
+    }
     @State private var live = LiveAktivitaeten.an
 
     var body: some View {
@@ -28,6 +44,7 @@ struct EinstellungenAnsicht: View {
                     }
                     Button { scannen = true } label: { Label("Weitere Adresse scannen (z. B. Tailscale)", systemImage: "qrcode.viewfinder") }
                     NavigationLink { VerbindungsDoktor() } label: { Label("Verbindung prüfen", systemImage: "stethoscope") }
+                    NavigationLink { GeraeteAnsicht() } label: { Label("Geräte & Schlüssel", systemImage: "lock.shield") }
                     NavigationLink { SelbsttestAnsicht() } label: {
                         HStack {
                             Label("Selbsttest", systemImage: "checklist")
@@ -44,6 +61,7 @@ struct EinstellungenAnsicht: View {
                 Section("Mitteilungen") {
                     Toggle("Bei fertigen Aufträgen und Nachrichten vom Helfer", isOn: $mitteilungen)
                     Toggle("🔇 Echo-Unterdrückung im Anruf (experimentell)", isOn: $echoAEC)
+                    Toggle("⚡ Ihre Stimme sofort abspielen (experimentell)", isOn: $stimmeStrom)
                     Toggle("🔔 Klang, wenn ein Auftrag fertig wird", isOn: $fertigKlang)
                         .onChange(of: fertigKlang) { _, an in if an { FertigKlang.spielen() } }
                         .onChange(of: mitteilungen) { _, an in Benachrichtigungen.an = an }
@@ -71,6 +89,29 @@ struct EinstellungenAnsicht: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .task { if let c = studio.client { push = await Push.stand(c) } }
+
+                Section {
+                    Toggle("Ruhezeiten", isOn: $ruheAn)
+                    if ruheAn {
+                        DatePicker("Von", selection: $ruheVon, displayedComponents: .hourAndMinute)
+                        DatePicker("Bis", selection: $ruheBis, displayedComponents: .hourAndMinute)
+                    }
+                } header: { Text("🌙 Ruhezeiten") } footer: {
+                    Text("Dann keine Meldungen und keine Anrufe vom Helfer, fertige Aufträge kommen leise. Anrufe, die du selbst für eine Uhrzeit bestellt hast (»ruf mich um 7 an«), klingeln trotzdem.")
+                }
+                .onChange(of: ruheAn) { _, _ in ruheSpeichern() }
+                .onChange(of: ruheVon) { _, _ in ruheSpeichern() }
+                .onChange(of: ruheBis) { _, _ in ruheSpeichern() }
+
+                Section {
+                    Picker("📶 Sparmodus", selection: $sparModus) {
+                        Text("Automatisch (Mobilfunk)").tag("auto")
+                        Text("Immer").tag("an")
+                        Text("Aus").tag("aus")
+                    }
+                } footer: {
+                    Text("Kleinere Vorschaubilder, Videos erst beim Antippen, kein Vorladen der Offline-Galerie, Helfer mit 30 statt 60 Bildern pro Sekunde – schont Akku und Datenvolumen.")
+                }
 
                 Section("iPhone") {
                     Picker("App-Symbol", selection: Binding(get: { UIApplication.shared.alternateIconName ?? "" }, set: { neu in

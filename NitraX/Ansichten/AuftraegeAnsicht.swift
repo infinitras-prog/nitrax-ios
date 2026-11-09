@@ -44,6 +44,7 @@ struct AuftraegeAnsicht: View {
                 .listRowBackground(Color.clear)
                 .listRowSeparator(.hidden)
 
+                if suche.isEmpty { VergleichKarten() }                       // 🎲 Varianten vergleichen
                 // ⏳ Warteschlange ordnen, zurückstellen, vorziehen
                 let wartend = studio.stand.auftraege.filter { $0.wartet }
                 if !wartend.isEmpty && (filter == .alle || filter == .laeuft) && suche.isEmpty {
@@ -166,6 +167,7 @@ struct AuftragDetail: View {
     @State private var vollbild: Int?
     @State private var enthuellen = false
     @State private var live: UIImage?
+    @State private var schnitt = false
 
     /// immer der aktuelle Stand (Fortschritt läuft live weiter)
     private var a: Auftrag { studio.stand.auftraege.first { $0.id == auftrag.id } ?? auftrag }
@@ -211,6 +213,7 @@ struct AuftragDetail: View {
             }
         }
         .task { await liveHolen() }
+        .sheet(isPresented: $schnitt) { MiniSchnitt(auftrag: a) }
         .onAppear { if a.fertig && a.bilderAnzahl > 0 { enthuellen = Enthuellt.neu(a.id) } }
         .onChange(of: a.fertig) { _, f in if f && a.bilderAnzahl > 0 { enthuellen = Enthuellt.neu(a.id) } }
         .fullScreenCover(item: Binding(get: { vollbild.map { BildNr(i: $0) } }, set: { vollbild = $0?.i })) { v in
@@ -267,7 +270,7 @@ struct AuftragDetail: View {
                 for (k, v) in c.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
                 if let (d, antwort) = try? await URLSession.shared.data(for: r), (antwort as? HTTPURLResponse)?.statusCode == 200, let b = UIImage(data: d) { live = b }
             } else if !a.laeuft { live = nil }
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .seconds(Netzlage.sparen ? 6 : 2))
         }
     }
 
@@ -307,6 +310,17 @@ struct AuftragDetail: View {
                     Label("Abbrechen", systemImage: "xmark").frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered).controlSize(.large)
+            }
+            if a.fertig && a.hatVideo {
+                Button { schnitt = true } label: { Label("Kürzen & teilen", systemImage: "scissors").frame(maxWidth: .infinity) }
+                    .buttonStyle(.bordered).controlSize(.large)
+            }
+            if a.fertig, Musikspieler.tonPfad(a) != nil {                     // 🎵 in den Player (läuft im Hintergrund weiter)
+                Button {
+                    let alle = studio.stand.auftraege.filter { $0.fertig && Musikspieler.tonPfad($0) != nil }.sorted { ($0.finished ?? 0) > ($1.finished ?? 0) }
+                    Musikspieler.shared.abspielen(alle, ab: alle.firstIndex(where: { $0.id == a.id }) ?? 0, client: studio.client)
+                } label: { Label("Im Player abspielen", systemImage: "music.note.list").frame(maxWidth: .infinity) }
+                    .buttonStyle(.bordered).controlSize(.large)
             }
             if a.fertig, let d = datei {
                 let (pfad, name, video) = d
@@ -461,7 +475,7 @@ struct LiveZwischenbild: View {
                     for (k, v) in c.cookieKopf { r.setValue(v, forHTTPHeaderField: k) }
                     if let (d, a) = try? await URLSession.shared.data(for: r), (a as? HTTPURLResponse)?.statusCode == 200, let b = UIImage(data: d) { bild = b }
                 }
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(Netzlage.sparen ? 10 : 3))
             }
         }
     }

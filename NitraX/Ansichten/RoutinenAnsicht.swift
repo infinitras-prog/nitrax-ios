@@ -51,10 +51,40 @@ struct RoutinenAnsicht: View {
     @State private var liste: [Routine] = []
     @State private var laedt = true
     @State private var bearbeiten: Routine?
+    @ObservedObject private var orte = OrtsRoutinen.shared
+    @ObservedObject private var kalender = KalenderDienst.shared
 
     var body: some View {
         NavigationStack {
             List {
+                // 📍 Orts-Routinen
+                Section {
+                    if orte.aktiv {
+                        Toggle("🏠 Begrüßen, wenn ich heimkomme", isOn: $orte.heimGruss)
+                        Toggle("🚗 Stand sagen, wenn ich losfahre", isOn: $orte.losStand)
+                        Button("Zuhause neu festlegen (hier)") { orte.hierZuhause() }
+                        Button("Orts-Routinen ausschalten", role: .destructive) { orte.entfernen() }
+                    } else {
+                        Button { orte.hierZuhause() } label: { Label("Hier ist mein Zuhause", systemImage: "house.fill") }
+                    }
+                    if let m = orte.meldung { Text(m).font(.caption).foregroundStyle(.secondary) }
+                } header: { Text("📍 Orts-Routinen") } footer: {
+                    Text("Dein Ort bleibt auf dem iPhone – an den PC geht nur »heimgekommen« bzw. »losgefahren«.")
+                }
+                // 📅 Kalender
+                Section {
+                    Toggle("Sie kennt meine Termine", isOn: Binding(get: { kalender.an }, set: { neu in
+                        if neu { Task { if await kalender.erlaubnis() { kalender.an = true } else { kalender.an = false } } } else { kalender.an = false }
+                    }))
+                    if kalender.an {
+                        Toggle("10 Minuten vorher erinnern", isOn: $kalender.erinnern)
+                        if let t = kalender.termine.first(where: { $0.start > Date() }) {
+                            Text("Nächster: \(t.titel) · \(t.start.formatted(date: .abbreviated, time: .shortened))").font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } header: { Text("📅 Kalender") } footer: {
+                    Text("Freiwillig. Titel und Uhrzeit der nächsten 3 Tage gehen an deinen PC (nur im Arbeitsspeicher), damit sie dich erinnern und Aufträge um Termine herum planen kann.")
+                }
                 Section {
                     if laedt { ProgressView().frame(maxWidth: .infinity) }
                     if !laedt && liste.isEmpty {

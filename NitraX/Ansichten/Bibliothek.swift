@@ -32,7 +32,19 @@ struct BibliothekAnsicht: View {
     private var alben: [String: [String]] {
         (try? JSONDecoder().decode([String: [String]].self, from: albenRoh)) ?? [:]
     }
-    private func albenSetzen(_ a: [String: [String]]) { albenRoh = (try? JSONEncoder().encode(a)) ?? Data() }
+    private func albenSetzen(_ a: [String: [String]]) {
+        albenRoh = (try? JSONEncoder().encode(a)) ?? Data()
+        if let c = studio.client { Task { _ = try? await c.post("/api/handy/alben", a) } }     // 📁 am PC gespeichert (alle Geräte)
+    }
+
+    /// 📁 Alben vom PC holen; liegen sie nur hier (von früher), einmal hochladen
+    private func albenAbgleichen() async {
+        guard let c = studio.client, let w = try? await c.get("/api/handy/alben", JSONWert.self), let o = w.objekt else { return }
+        let pc = o.compactMapValues { $0.liste?.compactMap(\.text) }
+        if pc.isEmpty && !alben.isEmpty { _ = try? await c.post("/api/handy/alben", alben) }
+        else if pc != alben { albenRoh = (try? JSONEncoder().encode(pc)) ?? Data() }
+    }
+    @State private var vergleichen = false
 
     private func zuAlbum(_ name: String) {
         var a = alben
@@ -116,6 +128,13 @@ struct BibliothekAnsicht: View {
             .padding(.bottom, waehlen ? 90 : 20)
         }
         .overlay(alignment: .bottom) { if waehlen { auswahlLeiste } }
+        .task { await albenAbgleichen() }
+        .sheet(isPresented: $vergleichen) {
+            NavigationStack {
+                VergleichAnsicht(ids: eintraege.filter { auswahl.contains($0.id) }.map(\.id))
+                    .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Schließen") { vergleichen = false } } }
+            }
+        }
         .sheet(isPresented: Binding(get: { !teilen.isEmpty }, set: { if !$0 { teilen = [] } })) {
             TeilenBlatt(dateien: teilen).presentationDetents([.medium, .large])
         }
@@ -195,6 +214,13 @@ struct BibliothekAnsicht: View {
                     Label("Klein", systemImage: "square.grid.4x3.fill").tag(4)
                 }
             } label: { Image(systemName: "arrow.up.arrow.down.circle").font(.title3) }
+            if art == .musik && !eintraege.isEmpty {                        // 🎵 Playlist
+                Menu {
+                    Button { spielen(false) } label: { Label("Alle abspielen", systemImage: "play.fill") }
+                    Button { spielen(true) } label: { Label("Zufallswiedergabe", systemImage: "shuffle") }
+                } label: { Image(systemName: "play.circle.fill").font(.title3) }
+                .padding(.leading, 8)
+            }
             Button(waehlen ? "Fertig" : "Auswählen") {
                 waehlen.toggle()
                 if !waehlen { auswahl = [] }
@@ -259,6 +285,8 @@ struct BibliothekAnsicht: View {
                 }
             } label: { Image(systemName: "folder.badge.plus") }
             .disabled(auswahl.isEmpty)
+            Button { vergleichen = true } label: { Image(systemName: "square.grid.2x2") }      // 🎲 nebeneinander
+                .disabled(auswahl.count < 2 || auswahl.count > 8)
             Button { Task { await holenAlle(sichern: false) } } label: { Image(systemName: "square.and.arrow.up") }
                 .disabled(auswahl.isEmpty || arbeitet != nil)
             Button { Task { await holenAlle(sichern: true) } } label: { Image(systemName: "square.and.arrow.down") }
@@ -324,6 +352,12 @@ struct BibliothekAnsicht: View {
         } else {
             teilen = fertig
         }
+    }
+
+    private func spielen(_ mischen: Bool) {
+        let l = eintraege.filter { Musikspieler.tonPfad($0) != nil }
+        Musikspieler.shared.abspielen(l, client: studio.client, mischen: mischen)
+        if l.isEmpty { studio.meldung = "Hier ist nichts zum Abspielen" }
     }
 
     private func favorit(_ a: Auftrag) async {
@@ -393,6 +427,7 @@ struct VideoStandbild: View {
 
     private func laden() async {
         if let b = BildSpeicher.cache.object(forKey: url as NSURL) { bild = b; return }
+        guard !Netzlage.sparen else { return }                          // 📶 unterwegs kein Video anzapfen
         let asset = AVURLAsset(url: url, options: ["AVURLAssetHTTPHeaderFieldsKey": studio.client?.cookieKopf ?? [:]])
         let gen = AVAssetImageGenerator(asset: asset)
         gen.appliesPreferredTrackTransform = true

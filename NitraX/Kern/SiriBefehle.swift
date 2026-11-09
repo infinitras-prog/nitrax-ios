@@ -201,6 +201,78 @@ struct HelferVideoanruf: AppIntent {
     }
 }
 
+// MARK: - ⚡ Runde 3, Nr. 9: mehr Kurzbefehle (auch für Automationen in der Kurzbefehle-App)
+
+struct VideoErstellen: AppIntent {
+    static var title: LocalizedStringResource = "Video erstellen"
+    static var description = IntentDescription("Erstellt ein Video nach deiner Beschreibung – du bekommst eine Mitteilung, wenn es fertig ist.")
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "Beschreibung", requestValueDialog: IntentDialog("Was soll im Video passieren?"))
+    var beschreibung: String
+
+    @Parameter(title: "Länge (Sekunden)", default: 5, inclusiveRange: (3, 10))
+    var laenge: Int
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        let c = try SiriHilfe.client()
+        _ = try await c.post("/api/handy/start", ["wf": "x-t2v", "felder": ["idee": beschreibung, "laenge": laenge]], zeit: 120)
+        return .result(dialog: "Das Video ist in Arbeit – ich melde mich, wenn es fertig ist.")
+    }
+}
+
+struct WasIstFertig: AppIntent {
+    static var title: LocalizedStringResource = "Was ist fertig geworden?"
+    static var description = IntentDescription("Nennt dir die Ergebnisse der letzten Stunden.")
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "Zeitraum (Stunden)", default: 12, inclusiveRange: (1, 72))
+    var stunden: Int
+
+    func perform() async throws -> some IntentResult & ProvidesDialog & ReturnsValue<Int> {
+        let s = try await SiriHilfe.client().stand()
+        let seit = Date().timeIntervalSince1970 - Double(stunden) * 3600
+        let l = s.auftraege.filter { $0.fertig && ($0.finished ?? 0) > seit }.sorted { ($0.finished ?? 0) > ($1.finished ?? 0) }
+        guard !l.isEmpty else { return .result(value: 0, dialog: "In den letzten \(stunden) Stunden ist nichts fertig geworden.") }
+        let namen = l.prefix(3).map { "\($0.artName) »\($0.titel)«" }.joined(separator: ", ")
+        return .result(value: l.count, dialog: "\(l.count) fertig: \(namen)\(l.count > 3 ? " und mehr" : "").")
+    }
+}
+
+/// ❤ Ein Favorit als Vorlage (für »Starte meine Lieblingsvorlage«)
+struct FavoritVorlage: AppEntity {
+    static var typeDisplayRepresentation: TypeDisplayRepresentation = "Lieblingsvorlage"
+    static var defaultQuery = FavoritAbfrage()
+    var id: String
+    var titel: String
+    var art: String
+    var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(titel)", subtitle: "\(art)") }
+}
+
+struct FavoritAbfrage: EntityQuery {
+    private func alle() async throws -> [FavoritVorlage] {
+        let s = try await SiriHilfe.client().stand()
+        return s.auftraege.filter { $0.fav && $0.fertig && $0.wiederholbar }.sorted { ($0.finished ?? 0) > ($1.finished ?? 0) }
+            .prefix(20).map { FavoritVorlage(id: $0.id, titel: $0.titel, art: $0.artName) }
+    }
+    func entities(for identifiers: [String]) async throws -> [FavoritVorlage] { try await alle().filter { identifiers.contains($0.id) } }
+    func suggestedEntities() async throws -> [FavoritVorlage] { try await alle() }
+}
+
+struct FavoritStarten: AppIntent {
+    static var title: LocalizedStringResource = "Lieblingsvorlage starten"
+    static var description = IntentDescription("Macht eine neue Variante eines deiner Favoriten – gleiche Einstellungen, neuer Zufall.")
+    static var openAppWhenRun: Bool = false
+
+    @Parameter(title: "Favorit", requestValueDialog: IntentDialog("Welchen Favoriten?"))
+    var favorit: FavoritVorlage
+
+    func perform() async throws -> some IntentResult & ProvidesDialog {
+        _ = try await SiriHilfe.client().post("/api/handy/start", ["wf": "_variante", "felder": ["id": favorit.id]], zeit: 120)
+        return .result(dialog: "Neue Variante von »\(favorit.titel)« läuft.")
+    }
+}
+
 struct NitraXKurzbefehle: AppShortcutsProvider {
     static var appShortcuts: [AppShortcut] {
         AppShortcut(intent: HelferAnrufen(), phrases: ["Ruf \(.applicationName) an", "Anruf mit \(.applicationName)",
@@ -225,5 +297,7 @@ struct NitraXKurzbefehle: AppShortcutsProvider {
                     shortTitle: "Anhalten", systemImageName: "pause.circle")
         AppShortcut(intent: WarteschlangeFortsetzen(), phrases: ["\(.applicationName) weitermachen"],
                     shortTitle: "Fortsetzen", systemImageName: "play.circle")
+        AppShortcut(intent: FavoritStarten(), phrases: ["Starte meine Lieblingsvorlage in \(.applicationName)", "\(.applicationName) Lieblingsvorlage"],
+                    shortTitle: "Lieblingsvorlage", systemImageName: "heart.fill")
     }
 }

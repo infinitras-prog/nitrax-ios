@@ -28,6 +28,8 @@ struct HauptAnsicht: View {
                 .tag(Navigation.Reiter.helfer)
         }
         .modifier(SeitenleisteAufIPad())
+        .overlay(alignment: .bottom) { MiniSpieler().padding(.bottom, 56) }      // 🎵 läuft Musik: kleine Leiste
+        .animation(.spring(duration: 0.35), value: Musikspieler.shared.aktuell?.id)
         .background {
             // 🧍 Liste Nr. 10: Helfer-Figur 25 s nach dem Start unsichtbar vorladen -> der Helfer-Tab ist danach sofort da
             if vorladen, let url = AnrufDienst.shared.helferURL {
@@ -282,7 +284,7 @@ enum FertigKlang {
     }()
 
     static func spielen() {
-        guard UserDefaults.standard.object(forKey: "fertig_klang") as? Bool ?? true, let id else { return }
+        guard UserDefaults.standard.object(forKey: "fertig_klang") as? Bool ?? true, !Ruhezeit.aktiv(), let id else { return }
         AudioServicesPlaySystemSound(id)
     }
 }

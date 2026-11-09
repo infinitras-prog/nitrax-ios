@@ -63,7 +63,17 @@ final class NXClient: @unchecked Sendable {
         var r = URLRequest(url: URL(string: basis + pfad)!)
         r.httpMethod = methode
         r.setValue("nx_handy=\(verbindung.schluessel)", forHTTPHeaderField: "Cookie")
+        r.setValue(Self.geraetKopf, forHTTPHeaderField: "X-NitraX-Geraet")
         return r
+    }
+
+    /// 🔐 »<Kennung>|<Name>« – damit der PC zeigen kann, welche Geräte zugreifen (und einzelne sperren)
+    static var geraetKopf: String {
+        let d = Gemeinsam.defaults
+        var id = d.string(forKey: "geraet_id") ?? ""
+        if id.isEmpty { id = UUID().uuidString.lowercased(); d.set(id, forKey: "geraet_id") }
+        let name = (d.string(forKey: "geraet_name") ?? "iPhone").addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? "iPhone"
+        return id + "|" + name
     }
 
     func url(_ pfad: String) -> URL? {
@@ -71,7 +81,7 @@ final class NXClient: @unchecked Sendable {
         return URL(string: b + pfad)
     }
 
-    var cookieKopf: [String: String] { ["Cookie": "nx_handy=\(verbindung.schluessel)"] }
+    var cookieKopf: [String: String] { ["Cookie": "nx_handy=\(verbindung.schluessel)", "X-NitraX-Geraet": Self.geraetKopf] }
 
     private func senden(_ pfad: String, methode: String, body: Data?, typ: String?, zeit: TimeInterval? = nil,
                         beobachter: URLSessionTaskDelegate? = nil) async throws -> Data {

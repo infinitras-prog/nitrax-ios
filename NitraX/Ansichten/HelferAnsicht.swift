@@ -156,6 +156,9 @@ struct HelferAnsicht: View {
         .onChange(of: freihand) { _, an in freihandSchalten(an) }
         .onChange(of: bruecke.bereit) { _, b in
             if b { freihandSchalten(freihand); bruecke.hintergrund(!hintergrund.isEmpty) }
+            if b && Netzlage.sparen {                                    // 📶 Akku/Daten: 30 statt 60 Bilder pro Sekunde
+                bruecke.js("try { var f = window.nxHandyHelfer.figur(); if (f) f.fps = 30 } catch (e) {}")
+            }
             if b { Task { try? await Task.sleep(for: .seconds(2.5)); HelferPortrait.holen(aus: bruecke.web) } }   // 🖼 für den Anrufkreis
             if b, let c = studio.client { Task { try? await Task.sleep(for: .seconds(6)); await Stimmvorrat.auffuellen(c) } }   // 👋 Begrüßungen vorrätig
         }

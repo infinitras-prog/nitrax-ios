@@ -59,10 +59,12 @@ enum Benachrichtigungen {
 
     static func senden(id: String, titel: String, text: String, ziel: String?, helfer: Bool = false) {
         guard an else { return }
+        if helfer && Ruhezeit.aktiv() { return }                    // 🌙 nachts keine Helfer-Meldungen
         let inhalt = UNMutableNotificationContent()
         inhalt.title = titel
         inhalt.body = text
-        inhalt.sound = .default
+        inhalt.sound = Ruhezeit.aktiv() ? nil : .default
+        if Ruhezeit.aktiv() { inhalt.interruptionLevel = .passive }
         inhalt.threadIdentifier = helfer ? "helfer" : "auftraege"
         if let ziel { inhalt.userInfo = ["auftrag": ziel] }
         if helfer { inhalt.userInfo = ["helfer": true] }
@@ -113,7 +115,8 @@ enum Benachrichtigungen {
         let inhalt = UNMutableNotificationContent()
         inhalt.title = titel
         inhalt.body = text
-        inhalt.sound = .default
+        inhalt.sound = Ruhezeit.aktiv() ? nil : .default           // 🌙 leise
+        if Ruhezeit.aktiv() { inhalt.interruptionLevel = .passive }
         inhalt.threadIdentifier = "auftraege"
         inhalt.categoryIdentifier = kategorie
         if let ziel { inhalt.userInfo = ["auftrag": ziel] }

@@ -192,6 +192,13 @@ struct SchaetzungZeile: View {
         } else {
             t += " · PC ist frei, startet sofort"
         }
+        if let d = dauer, s["pausiert"]?.wahr != true {                     // 📅 fertig vor dem nächsten Termin?
+            let fertig = Date().addingTimeInterval(d + (vor > 0 ? warten : 0))
+            if let k = KalenderDienst.shared.naechster(bis: fertig.addingTimeInterval(45 * 60)) {
+                let uhr = fertig.formatted(date: .omitted, time: .shortened)
+                t += k.start > fertig ? " · fertig ca. \(uhr) – vor »\(k.titel)«" : " · wird erst nach Beginn von »\(k.titel)« fertig (ca. \(uhr))"
+            }
+        }
         if let f = s["fremd"]?.liste?.compactMap(\.text), !f.isEmpty, s["pausiert"]?.wahr != true {
             t += " · \(f.joined(separator: ", ")) läuft – kann langsamer werden"
         }
