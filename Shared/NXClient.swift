@@ -189,7 +189,8 @@ final class NXClient: @unchecked Sendable {
         }
     }
 
-    func stand() async throws -> StudioStand { try await get("/api/state", StudioStand.self) }
+    /// 📶 »schlank«: nur die Felder, die App, Widget und Siri anzeigen (statt ~3,9 MB)
+    func stand() async throws -> StudioStand { try await get("/api/state?schlank=1", StudioStand.self) }
 }
 
 

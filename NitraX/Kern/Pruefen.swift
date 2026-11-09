@@ -99,7 +99,11 @@ final class Doktor: ObservableObject {
                 punkte[idx] = PruefPunkt(name: name, zustand: .fehler, text: "iOS blockiert den Zugriff aufs Heimnetz – Einstellungen → Datenschutz → Lokales Netzwerk → NitraX einschalten.", ms: ms)
             case .zeit:
                 let warum: String
-                if art.lan && !netz.wlan { warum = "Du bist nicht im WLAN – diese Adresse geht nur zu Hause. Unterwegs: Tailscale am iPhone einschalten." }
+                let hatTailscale = v.adressen.contains { Self.art(URL(string: $0)?.host ?? "").tailscale }
+                if art.lan && !netz.wlan && netz.vpn && !hatTailscale {
+                    warum = "Du bist unterwegs und Tailscale ist an – aber in der App ist noch keine Tailscale-Adresse gespeichert. "
+                        + "Sobald du wieder im WLAN zu Hause bist, merkt sich die App den Tailscale-Weg von selbst."
+                } else if art.lan && !netz.wlan { warum = "Du bist nicht im WLAN – diese Adresse geht nur zu Hause. Unterwegs: Tailscale am iPhone einschalten." }
                 else if art.tailscale && !netz.vpn { warum = "Tailscale scheint am iPhone aus zu sein – in der Tailscale-App verbinden." }
                 else { warum = "Keine Antwort – PC aus oder im Standby, anderes WLAN, oder die Windows-Firewall blockt (Private Netzwerke erlauben)." }
                 punkte[idx] = PruefPunkt(name: name, zustand: .fehler, text: warum, ms: ms)

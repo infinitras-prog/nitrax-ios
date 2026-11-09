@@ -233,7 +233,7 @@ final class Studio: ObservableObject {
     func aktualisieren() async {
         guard let c = client else { return }
         do {
-            let roh = try await c.roh("/api/state")
+            let roh = try await c.roh("/api/state?schlank=1")             // 📶 nur, was die App braucht
             let s = try JSONDecoder().decode(StudioStand.self, from: roh)
             withAnimation(.snappy(duration: 0.35)) { stand = s }             // ✨ neue/fertige Aufträge gleiten statt springen
             try? roh.write(to: Self.ablage("stand.json"), options: .atomic)
@@ -242,6 +242,10 @@ final class Studio: ObservableObject {
             widgetAuffrischen(s)
             LiveAktivitaeten.abgleichen(s, client: c)
             await LokaleAnrufe.abgleichen(c)                                   // 📞 geplante Anrufe als Klingel-Alarm
+            if Date().timeIntervalSince(adressenZeit) > 6 * 3600 {          // 📍 Tailscale-Wege für unterwegs merken
+                adressenZeit = Date()
+                Task { await adressenLernen(c) }
+            }
             if !vorratGeprueft {
                 vorratGeprueft = true
                 Task { await Stimmvorrat.auffuellen(c) }                       // 👋 Begrüßungen in ihrer Stimme
@@ -274,6 +278,22 @@ final class Studio: ObservableObject {
         } catch {
             erreichbar = false
         }
+    }
+
+    private var adressenZeit = Date.distantPast
+
+    /// 📍 Der PC nennt alle Wege zu sich (Heimnetz, Tailscale direkt, Tailscale-HTTPS) – fehlende kommen dazu, damit die App
+    /// unterwegs von selbst über Tailscale verbindet (09.11.2026: nur die WLAN-Adresse war gespeichert -> unterwegs »nicht erreichbar«)
+    private func adressenLernen(_ c: NXClient) async {
+        guard let w = try? await c.get("/api/handy/adressen", JSONWert.self), var v = verbindung else { return }
+        let neu = (w["adressen"]?.liste ?? []).compactMap(\.text)
+            .filter { $0.hasPrefix("http") && !v.adressen.contains($0) }
+        guard !neu.isEmpty else { return }
+        v.adressen += neu
+        v.speichern()
+        verbindung = v
+        client = NXClient(v)
+        meldung = "📍 Tailscale-Weg gemerkt – NitraX klappt jetzt auch unterwegs"
     }
 
     /// Widget nur bei Änderung (oder jede Minute) neu zeichnen lassen - nicht alle 3 s
