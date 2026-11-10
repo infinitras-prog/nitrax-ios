@@ -298,6 +298,7 @@ struct ChatAnsicht: View {
     @State private var seit = Date()
     @State private var verfolgen: Task<Void, Never>?
     @State private var titel: String?
+    @State private var unterbrochen: String?
 
     private var art: ChatArt { ChatArt(kopf.art) }
 
@@ -312,6 +313,24 @@ struct ChatAnsicht: View {
                         ForEach(nachrichten) { n in
                             Blase(n: n, art: art, aktiv: laeuft && n.id == nachrichten.last?.id,
                                   entscheiden: { s, e in Task { await entscheiden(s, e) } }).id(n.id)
+                        }
+                        if let u = unterbrochen, !laeuft {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Label("Unterbrochen", systemImage: "pause.circle.fill").font(.caption.weight(.bold)).foregroundStyle(Farbe.warn)
+                                    Text(u).font(.caption2).foregroundStyle(.secondary).lineLimit(2)
+                                }
+                                Spacer()
+                                Button {
+                                    unterbrochen = nil
+                                    eingabe = "Mach da weiter, wo du aufgehört hast."
+                                    senden()
+                                } label: { Label("Weitermachen", systemImage: "play.fill").font(.caption.weight(.semibold)) }
+                                    .buttonStyle(.borderedProminent).tint(Farbe.warn)
+                            }
+                            .padding(12)
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Farbe.warn.opacity(0.1)))
+                            .padding(.leading, 36)
                         }
                         if laeuft {
                             ArbeitsZeile(status: status.isEmpty ? "arbeitet …" : status, seit: seit, farbe: art.farben[0])
@@ -460,6 +479,10 @@ struct ChatAnsicht: View {
                           geaendert: n["aenderungen"]?.objekt?.count ?? 0)
         }
         if let t = d["titel"]?.text, !t.isEmpty { titel = t }
+        if let u = d["unterbrochen"]?.objekt {
+            let g = Int(u["gesamt"]?.zahl ?? 0), f = Int(u["fertig"]?.zahl ?? 0)
+            unterbrochen = (g > 0 ? "Plan \(f)/\(g) · " : "") + (u["zuletzt"]?.text ?? "")
+        } else { unterbrochen = nil }
         if let o = d["offen"], let s = CodeSchritt(o) { codeSchritt(s) }
         if d["laeuft"]?.wahr == true {
             if !laeuft { seit = Date() }
