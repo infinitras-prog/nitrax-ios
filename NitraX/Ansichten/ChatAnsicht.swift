@@ -95,6 +95,19 @@ struct CodeSchritt: Identifiable, Hashable {
     var wartet: Bool { status == "wartet" && vid != nil }
 }
 
+/// Plan des Code-Agenten (Checkliste, 10.11.2026)
+struct PlanSchritt: Hashable {
+    var text: String
+    var status: String
+
+    static func liste(_ w: JSONWert?) -> [PlanSchritt] {
+        (w?["schritte"]?.liste ?? []).compactMap { x in
+            guard let t = x["text"]?.text, !t.isEmpty else { return nil }
+            return PlanSchritt(text: t, status: x["status"]?.text ?? "offen")
+        }
+    }
+}
+
 struct ChatNachricht: Identifiable, Hashable {
     let id = UUID()
     var rolle: String
@@ -104,6 +117,9 @@ struct ChatNachricht: Identifiable, Hashable {
     var auftraege: [String] = []
     var code: [CodeSchritt] = []
     var denken = ""
+    var plan: [PlanSchritt] = []
+    var planFrage = false
+    var geaendert = 0
 }
 
 @MainActor
@@ -281,6 +297,7 @@ struct ChatAnsicht: View {
     @FocusState private var fokus: Bool
     @State private var seit = Date()
     @State private var verfolgen: Task<Void, Never>?
+    @State private var titel: String?
 
     private var art: ChatArt { ChatArt(kopf.art) }
 
@@ -318,7 +335,7 @@ struct ChatAnsicht: View {
                 HStack(spacing: 8) {
                     AgentKachel(art: art, groesse: 24)
                     VStack(alignment: .leading, spacing: 0) {
-                        Text(kopf.titel).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        Text(titel ?? kopf.titel).font(.subheadline.weight(.semibold)).lineLimit(1)
                         Text(laeuft ? "arbeitet …" : art.name).font(.caption2).foregroundStyle(laeuft ? Farbe.gut : .secondary)
                     }
                 }
@@ -437,8 +454,12 @@ struct ChatAnsicht: View {
                           werkzeuge: (n["werkzeuge"]?.liste ?? []).compactMap { $0["name"]?.text },
                           auftraege: (n["auftraege"]?.liste ?? []).compactMap { $0.text },
                           code: (n["code"]?.liste ?? []).compactMap(CodeSchritt.init),
-                          denken: n["denken"]?.text ?? "")
+                          denken: n["denken"]?.text ?? "",
+                          plan: PlanSchritt.liste(n["plan"]),
+                          planFrage: n["plan"]?["frage"]?.wahr ?? false,
+                          geaendert: n["aenderungen"]?.objekt?.count ?? 0)
         }
+        if let t = d["titel"]?.text, !t.isEmpty { titel = t }
         if let o = d["offen"], let s = CodeSchritt(o) { codeSchritt(s) }
         if d["laeuft"]?.wahr == true {
             if !laeuft { seit = Date() }
@@ -545,6 +566,14 @@ struct ChatAnsicht: View {
                 nachrichten[nachrichten.count - 1] = l
             }
         case "fehler": anhaengen("\n\n⚠ " + (ev["d"]?.text ?? "Fehler"))
+        case "plan":
+            if var l = nachrichten.last, l.rolle == "assistant" {
+                l.plan = PlanSchritt.liste(ev["d"])
+                l.planFrage = ev["d"]?["frage"]?.wahr ?? false
+                nachrichten[nachrichten.count - 1] = l
+            }
+        case "titel":
+            if let t = ev["d"]?.text, !t.isEmpty { titel = t }
         default: break
         }
     }
@@ -639,7 +668,13 @@ struct Blase: View {
             VStack(alignment: istIch ? .trailing : .leading, spacing: 8) {
                 if !n.denken.isEmpty { gedanken }
                 if !n.werkzeuge.isEmpty { werkzeugChips }
+                if !n.plan.isEmpty { planListe }
                 if !n.code.isEmpty { codeListe }
+                if n.geaendert > 0 && !aktiv {
+                    Label("\(n.geaendert) \(n.geaendert == 1 ? "Datei" : "Dateien") geändert – Stellen einzeln zurücknehmen am PC",
+                          systemImage: "doc.badge.clock")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
                 if !n.bilder.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack {
@@ -729,6 +764,37 @@ struct Blase: View {
                     .font(.caption2.weight(.semibold)).tint(art.farben[0])
             }
         }
+    }
+
+    /// Code-Agent: Plan als Checkliste (»Passt der Plan?« – einfach antworten)
+    private var planListe: some View {
+        let fertig = n.plan.filter { $0.status == "fertig" }.count
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Label("Plan", systemImage: "list.bullet.clipboard").font(.caption.weight(.bold))
+                Spacer()
+                Text("\(fertig)/\(n.plan.count)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+            }
+            ProgressView(value: Double(fertig), total: Double(max(1, n.plan.count))).tint(art.farben[0])
+            ForEach(Array(n.plan.enumerated()), id: \.offset) { _, p in
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: p.status == "fertig" ? "checkmark.circle.fill" : p.status == "läuft" ? "circle.dotted.circle"
+                          : p.status == "problem" ? "exclamationmark.triangle.fill" : p.status == "übersprungen" ? "minus.circle" : "circle")
+                        .foregroundStyle(p.status == "fertig" ? Farbe.gut : p.status == "läuft" ? art.farben[0]
+                                         : p.status == "problem" ? Farbe.fehler : Color.secondary)
+                        .font(.caption)
+                    Text(p.text).font(.caption).strikethrough(p.status == "übersprungen")
+                        .foregroundStyle(p.status == "fertig" ? Color.secondary : Color.primary)
+                }
+            }
+            if n.planFrage && fertig == 0 && !aktiv {
+                Text("Passt der Plan? Antworte einfach – z. B. »passt« oder was anders sein soll.")
+                    .font(.caption2.weight(.semibold)).foregroundStyle(art.farben[0])
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.white.opacity(0.05)))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(art.farben[0].opacity(n.planFrage && fertig == 0 ? 0.5 : 0.15)))
     }
 
     /// Code-Agent: Schritte mit Status, wartende mit Freigabe
