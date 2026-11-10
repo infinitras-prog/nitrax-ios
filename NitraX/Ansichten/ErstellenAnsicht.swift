@@ -52,6 +52,22 @@ struct ErstellenAnsicht: View {
                         .buttonStyle(.plain)
                     }
 
+                    if kategorie == "eigene" {                                  // 🧩 eigene Workflows teilen/importieren
+                        NavigationLink { EigeneWorkflowsAnsicht() } label: {
+                            HStack(spacing: 12) {
+                                Text("🧩").font(.system(size: 26)).frame(width: 44, height: 44).background(Circle().fill(Farbe.akzent.opacity(0.16)))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Eigene verwalten").font(.subheadline.weight(.semibold))
+                                    Text("Teilen, importieren (auch ComfyUI), ein- und ausschalten").font(.caption).foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                            }
+                            .karte()
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     if studio.workflows == nil {
                         ProgressView("Workflows werden geladen …").padding(.top, 40)
                     }

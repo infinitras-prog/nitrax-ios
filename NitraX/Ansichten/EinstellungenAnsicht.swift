@@ -48,6 +48,7 @@ struct EinstellungenAnsicht: View {
                     NavigationLink { VerbindungsDoktor() } label: { Label("Verbindung prüfen", systemImage: "stethoscope") }
                     NavigationLink { GeraeteAnsicht() } label: { Label("Geräte & Schlüssel", systemImage: "lock.shield") }
                     NavigationLink { SystemzustandAnsicht() } label: { Label("Systemzustand", systemImage: "waveform.path.ecg") }
+                    NavigationLink { EigeneWorkflowsAnsicht() } label: { Label("Eigene Workflows (teilen, importieren)", systemImage: "puzzlepiece.extension") }
                     NavigationLink { SelbsttestAnsicht() } label: {
                         HStack {
                             Label("Selbsttest", systemImage: "checklist")

@@ -241,8 +241,10 @@ struct TutorialUebersicht: View {
 @MainActor
 struct WasIstNeu: View {
     @Environment(\.dismiss) private var dismiss
-    static let version = "0.5.32"
+    static let version = "0.5.33"
     static let punkte: [(String, String, String)] = [
+        ("square.and.arrow.up", "Eigene Workflows teilen & importieren", "Erstellen → 🧩 Eigene → »Eigene verwalten«: als Datei teilen (z. B. AirDrop), Workflows von anderen oder aus ComfyUI importieren, ein- und ausschalten."),
+        ("checkmark.seal", "Workflows mit Probelauf", "Der Code-Agent rechnet jeden neuen Workflow einmal echt durch, bevor er »fertig« sagt – samt passender Modell-Paare."),
         ("puzzlepiece.extension.fill", "Eigene Workflows", "Was du im Code-Agenten baust, erscheint unter Erstellen → 🧩 Eigene – mit Formular, Fortschritt und Ergebnis wie jeder andere Workflow."),
         ("graduationcap.fill", "»Tutorial« statt »Einführung«", "Die Schritt-für-Schritt-Hilfe mit echtem Testlauf heißt jetzt überall Tutorial."),
         ("checkmark.seal.fill", "Für diese Sitzung immer erlauben", "Der Code-Agent fragt in diesem Chat nicht mehr nach. Die harten Sperren (Löschen, System) und die Ordnergrenze bleiben."),
