@@ -681,26 +681,6 @@
         }
       }
     },
-    "Einführungen": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Introductions"
-          }
-        }
-      }
-    },
-    "Einführungen (jeder Workflow mit Testlauf)": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Introductions (every workflow with a test run)"
-          }
-        }
-      }
-    },
     "Einreihen": {
       "localizations": {
         "en": {
@@ -1201,22 +1181,22 @@
         }
       }
     },
-    "Jede Einführung erklärt den Workflow Schritt für Schritt, setzt Beispiele ein und macht einen echten Testlauf – den du live mitverfolgst, bis dein erstes Ergebnis da ist.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Each introduction explains the workflow step by step, fills in examples and does a real test run – which you follow live until your first result is there."
-          }
-        }
-      }
-    },
     "Jeder Workflow Schritt für Schritt – mit echtem Testlauf zum Mitverfolgen": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Every workflow step by step – with a real test run to follow"
+          }
+        }
+      }
+    },
+    "Jedes Tutorial erklärt den Workflow Schritt für Schritt, setzt Beispiele ein und macht einen echten Testlauf – den du live mitverfolgst, bis dein erstes Ergebnis da ist.": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Each tutorial explains the workflow step by step, fills in examples and does a real test run – which you follow live until your first result is there."
           }
         }
       }
@@ -2431,6 +2411,26 @@
         }
       }
     },
+    "Tutorials": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutorials"
+          }
+        }
+      }
+    },
+    "Tutorials (jeder Workflow mit Testlauf)": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tutorials (every workflow with a test run)"
+          }
+        }
+      }
+    },
     "Umbenennen": {
       "localizations": {
         "en": {
@@ -3241,12 +3241,12 @@
         }
       }
     },
-    "🎓 Einführungen": {
+    "🎓 Tutorials": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "🎓 Introductions"
+            "value": "🎓 Tutorials"
           }
         }
       }

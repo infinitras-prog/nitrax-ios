@@ -150,7 +150,7 @@ struct EinstellungenAnsicht: View {
                 .such(suche, "Studio Warteschlange anhalten Grafikkarte")
 
                 Section("Hilfe") {
-                    NavigationLink { TutorialUebersicht() } label: { Label("Einführungen (jeder Workflow mit Testlauf)", systemImage: "graduationcap") }
+                    NavigationLink { TutorialUebersicht() } label: { Label("Tutorials (jeder Workflow mit Testlauf)", systemImage: "graduationcap") }
                     Button { neuZeigen = true } label: { Label("Was ist neu", systemImage: "sparkles") }
                 }
                 .such(suche, "Hilfe Einführung Tutorial Anleitung neu Neuigkeiten")

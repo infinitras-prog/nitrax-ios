@@ -59,7 +59,7 @@ struct TutorialLeiste: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Label("Einführung · \(t.name)", systemImage: "graduationcap.fill").font(.caption.weight(.bold)).foregroundStyle(Farbe.akzent)
+                Label("Tutorial · \(t.name)", systemImage: "graduationcap.fill").font(.caption.weight(.bold)).foregroundStyle(Farbe.akzent)
                 Spacer()
                 Text("\(min(schritt, t.schritte.count + 1))/\(t.schritte.count + 1)").font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
                 Button { beenden() } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
@@ -195,7 +195,7 @@ struct TutorialUebersicht: View {
     var body: some View {
         List {
             Section {
-                Text("Jede Einführung erklärt den Workflow Schritt für Schritt, setzt Beispiele ein und macht einen echten Testlauf – den du live mitverfolgst, bis dein erstes Ergebnis da ist.")
+                Text("Jedes Tutorial erklärt den Workflow Schritt für Schritt, setzt Beispiele ein und macht einen echten Testlauf – den du live mitverfolgst, bis dein erstes Ergebnis da ist.")
                     .font(.footnote).foregroundStyle(.secondary)
             }
             .listRowBackground(Color.clear)
@@ -225,7 +225,7 @@ struct TutorialUebersicht: View {
         }
         .scrollContentBackground(.hidden)
         .nxHintergrund()
-        .navigationTitle("🎓 Einführungen")
+        .navigationTitle("🎓 Tutorials")
         .navigationBarTitleDisplayMode(.inline)
         .task { await studio.workflowsLaden() }
     }
@@ -241,8 +241,10 @@ struct TutorialUebersicht: View {
 @MainActor
 struct WasIstNeu: View {
     @Environment(\.dismiss) private var dismiss
-    static let version = "0.5.31"
+    static let version = "0.5.32"
     static let punkte: [(String, String, String)] = [
+        ("puzzlepiece.extension.fill", "Eigene Workflows", "Was du im Code-Agenten baust, erscheint unter Erstellen → 🧩 Eigene – mit Formular, Fortschritt und Ergebnis wie jeder andere Workflow."),
+        ("graduationcap.fill", "»Tutorial« statt »Einführung«", "Die Schritt-für-Schritt-Hilfe mit echtem Testlauf heißt jetzt überall Tutorial."),
         ("checkmark.seal.fill", "Für diese Sitzung immer erlauben", "Der Code-Agent fragt in diesem Chat nicht mehr nach. Die harten Sperren (Löschen, System) und die Ordnergrenze bleiben."),
         ("waveform.path", "Immer sehen, was passiert", "Gedanken live, laufender Schritt mit Zeit, Fortschritt auch nach dem Wiederöffnen eines laufenden Chats."),
         ("bubble.left.and.bubble.right.fill", "Chat neu gestaltet", "Drei Agenten oben zum Starten, Verlauf nach Tagen sortiert mit Filter und Suche, schönere Blasen und Beispiel-Ideen zum Antippen."),
@@ -251,7 +253,7 @@ struct WasIstNeu: View {
         ("puzzlepiece.extension.fill", "NitraX selbst erweitern", "Im Code-Agenten einfach schreiben, was NitraX zusätzlich können soll – er baut es sicher als Erweiterung (eigener Ordner, geprüft, mit Rückgängig)."),
         ("globe", "NitraX auf Englisch", "Ist dein iPhone auf Englisch gestellt, spricht die App Englisch – oder einzeln: iOS-Einstellungen → NitraX → Sprache."),
         ("checklist", "Helfer-Pläne zuverlässiger", "»Mach ein Bild und daraus ein GIF«: der Helfer plant den nötigen Zwischenschritt (Video) selbst, und Sofort-Ergebnisse wie GIFs zählen als fertig."),
-        ("graduationcap.fill", "Einführungen für jeden Workflow", "Erstellen → 🎓 Einführungen: Schritt für Schritt erklärt, mit Beispielen und echtem Testlauf, den du live mitverfolgst."),
+        ("graduationcap.fill", "Tutorials für jeden Workflow", "Erstellen → 🎓 Tutorials: Schritt für Schritt erklärt, mit Beispielen und echtem Testlauf, den du live mitverfolgst."),
         ("hammer.fill", "Die Werkstatt zeigt, was sie tut", "Auf der Startseite siehst du, woran sie gerade arbeitet – z. B. »Regie plant: 4 von 13 Szenen«."),
         ("list.number", "Mehrschritt-Aufträge", "»Erst Song, dann Film, dann …« – dein Helfer arbeitet Schritt für Schritt, meldet jeden Schritt und macht nach Neustarts weiter."),
         ("paperplane.fill", "Fertig zum Veröffentlichen", "Bei jedem Video: TikTok, Reels, Shorts oder YouTube – Format, Länge, Lautstärke, Untertitel, Titelbild, Text und Hashtags macht der PC."),

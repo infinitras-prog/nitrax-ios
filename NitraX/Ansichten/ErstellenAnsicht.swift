@@ -19,7 +19,7 @@ struct ErstellenAnsicht: View {
                         HStack(spacing: 12) {
                             Text("🎓").font(.system(size: 26)).frame(width: 44, height: 44).background(Circle().fill(Farbe.akzent.opacity(0.16)))
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Einführungen").font(.subheadline.weight(.semibold))
+                                Text("Tutorials").font(.subheadline.weight(.semibold))
                                 Text("Jeder Workflow Schritt für Schritt – mit echtem Testlauf zum Mitverfolgen").font(.caption).foregroundStyle(.secondary)
                             }
                             Spacer()
@@ -121,7 +121,7 @@ struct WorkflowFormular: View {
             for (k, v) in t.test { werte[k] = v }                       // schnelle Test-Einstellungen
             for s in t.schritte where s.test { if let b = s.beispiel { werte[s.feld] = b } }
             withAnimation(.snappy) { tutorial = t; tutSchritt = 0 }
-        } catch { fehler = "Einführung nicht verfügbar: \(error.localizedDescription)" }
+        } catch { fehler = "Tutorial nicht verfügbar: \(error.localizedDescription)" }
     }
     @State private var startet = false
     @State private var startZeit = Date()
@@ -136,7 +136,7 @@ struct WorkflowFormular: View {
                 Text(workflow.text).font(.footnote).foregroundStyle(.secondary)
                 if tutorial == nil {
                     Button { Task { await tutorialStarten() } } label: {
-                        Label(tutLaedt ? "Einführung lädt …" : "🎓 Einführung mit Testlauf", systemImage: "graduationcap")
+                        Label(tutLaedt ? "Tutorial lädt …" : "🎓 Tutorial mit Testlauf", systemImage: "graduationcap")
                     }
                     .font(.footnote)
                 }
