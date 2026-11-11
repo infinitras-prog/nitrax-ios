@@ -8,7 +8,7 @@ import Accelerate
 final class Dauergespraech: ObservableObject {
     enum Phase { case aus, lauscht, hoert, versteht }
     @Published private(set) var phase: Phase = .aus
-    @Published private(set) var pegel: Float = 0                  // 0…1 für die Anzeige
+    private(set) var pegel: Float = 0   // 11.11.2026: nicht @Published – niemand zeigt ihn an, er löste ~10 Neuaufbauten/s der Helfer-Ansicht aus                  // 0…1 für die Anzeige
 
     /// Zustand des Helfers (von der Seite gemeldet): "sprechen", "denken", "hoeren", "ruhe"
     var helferZustand = "ruhe"

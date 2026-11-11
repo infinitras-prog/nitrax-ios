@@ -1,4 +1,5 @@
 import SwiftUI
+import Combine
 import WebKit
 import AVFoundation
 import CoreMotion
@@ -25,7 +26,9 @@ struct HelferAnsicht: View {
     @State private var routinenZeigen = false
     @State private var aussehen = false
     @AppStorage("helfer_hintergrund") private var hintergrund = ""      // 🎨 eigener Hintergrund hinter ihr
-    @ObservedObject private var anruf = AnrufDienst.shared
+    // 11.11.2026: NICHT beobachten – der Anruf-Dienst meldet Pegel/Wellenform viele Male pro Sekunde; das baute diese Ansicht
+    // ständig neu und das ⋯-Menü verschluckte Tipps (»muss ein paarmal tippen«). Nur der Gesprächs-Wechsel zählt (onReceive).
+    private let anruf = AnrufDienst.shared
     @Environment(\.scenePhase) private var phase
 
     var body: some View {
@@ -143,7 +146,7 @@ struct HelferAnsicht: View {
         // 🔇 Tab gewechselt / App im Hintergrund: sofort still (die Antwort steht trotzdem im Verlauf)
         .onChange(of: navigation.reiter) { _, r in if r != .helfer { stummSchalten() } }
         .onChange(of: phase) { _, ph in if ph != .active { stummSchalten() } }
-        .onChange(of: anruf.imGespraech) { _, an in
+        .onReceive(anruf.$imGespraech.removeDuplicates().dropFirst()) { an in
             if an {
                 stummSchalten()
                 augen.stoppen()
@@ -250,7 +253,7 @@ final class HelferBruecke: ObservableObject {
     func neu() { bereit = false; fehler = nil }
 
     func fertig() {
-        bereit = true
+        if !bereit { bereit = true }
         let liste = wartend
         wartend = []
         liste.forEach { $0() }
