@@ -3,11 +3,10 @@ import SwiftUI
 /// ⚙ Helfer anpassen (wie am PC): Name, Persönlichkeit, Stimme, Über mich, Sprechen, Verhalten, Augen.
 /// Aussehen, PC-Steuerung und Desktop-Funktionen bleiben am PC (der PC lässt sie vom Handy aus nicht ändern).
 @MainActor
-struct HelferEinstellungen: View, Equatable {
-    // 11.11.2026: die Helfer-Ansicht dahinter zeichnet sich ständig neu (Mikrofon-Pegel, Kamera) – das darf dieses Formular
-    // nicht mitreißen (offene Auswahl schloss sich, Liste sprang nach oben). Eingaben ändern sich nie -> immer »gleich«.
-    nonisolated static func == (a: HelferEinstellungen, b: HelferEinstellungen) -> Bool { true }
-    @EnvironmentObject private var studio: Studio
+struct HelferEinstellungen: View {
+    // 11.11.2026: kein @EnvironmentObject Studio mehr – dessen Aktualisierungen bauten das Formular ständig neu
+    // (offene Auswahl schloss sich, Liste sprang hoch). Die Verbindung kommt einmal beim Öffnen herein.
+    let client: NXClient?
     @Environment(\.dismiss) private var dismiss
     var gespeichert: () -> Void
 
@@ -99,7 +98,7 @@ struct HelferEinstellungen: View, Equatable {
     private func zahl(_ k: String, _ standard: Double) -> Binding<Double> { Binding(get: { e[k]?.zahl ?? standard }, set: { e[k] = .zahl($0) }) }
 
     private func laden() async {
-        guard let c = studio.client else { return }
+        guard let c = client else { return }
         do {
             let d = try await c.get("/api/begleiter", JSONWert.self)
             e = d["einst"]?.objekt ?? [:]
@@ -127,7 +126,7 @@ struct HelferEinstellungen: View, Equatable {
     }
 
     private func sichern() async {
-        guard let c = studio.client else { return }
+        guard let c = client else { return }
         var aenderung: [String: Any] = [:]
         for (k, v) in e where original[k] != v { aenderung[k] = v.roh }
         guard !aenderung.isEmpty else { dismiss(); return }
