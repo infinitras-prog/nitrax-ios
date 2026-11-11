@@ -3,7 +3,10 @@ import SwiftUI
 /// ⚙ Helfer anpassen (wie am PC): Name, Persönlichkeit, Stimme, Über mich, Sprechen, Verhalten, Augen.
 /// Aussehen, PC-Steuerung und Desktop-Funktionen bleiben am PC (der PC lässt sie vom Handy aus nicht ändern).
 @MainActor
-struct HelferEinstellungen: View {
+struct HelferEinstellungen: View, Equatable {
+    // 11.11.2026: die Helfer-Ansicht dahinter zeichnet sich ständig neu (Mikrofon-Pegel, Kamera) – das darf dieses Formular
+    // nicht mitreißen (offene Auswahl schloss sich, Liste sprang nach oben). Eingaben ändern sich nie -> immer »gleich«.
+    nonisolated static func == (a: HelferEinstellungen, b: HelferEinstellungen) -> Bool { true }
     @EnvironmentObject private var studio: Studio
     @Environment(\.dismiss) private var dismiss
     var gespeichert: () -> Void

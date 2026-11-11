@@ -129,7 +129,7 @@ struct HelferAnsicht: View {
         .sheet(isPresented: $aussehen) { HelferAussehen(bruecke: bruecke).presentationDetents([.medium, .large]) }
         .onChange(of: hintergrund) { _, h in bruecke.hintergrund(!h.isEmpty) }
         .sheet(isPresented: $einstellungen) {
-            HelferEinstellungen { neuLaden = UUID() }
+            HelferEinstellungen { neuLaden = UUID() }.equatable()
         }
         .fullScreenCover(isPresented: $kamera) {
             KameraAufnahme { d in Task { await fotoSenden(d) } }.ignoresSafeArea()

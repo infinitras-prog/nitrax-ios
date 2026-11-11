@@ -228,6 +228,22 @@ final class Studio: ObservableObject {
     }
 
     private var vorratGeprueft = false
+    private var letzteStruktur = "", letzteWerte = "", letzterWertStand = Date.distantPast
+
+    /// (Struktur, Werte) eines Stands: Struktur = was eine Ansicht umbaut (Aufträge, Status, Engine, Fremdprogramme),
+    /// Werte = was sich ständig ändert (Fortschritt, Phase, GPU) – grob gerundet, damit Rauschen nichts auslöst
+    static func signatur(_ roh: Data) -> (String, String) {
+        guard let d = try? JSONSerialization.jsonObject(with: roh) as? [String: Any] else { return (UUID().uuidString, "") }
+        let jobs = (d["jobs"] as? [[String: Any]]) ?? []
+        let engine = ((d["engine"] as? [String: Any])?["up"] as? Bool) == true
+        let fremd = ((d["foreign"] as? [[String: Any]]) ?? []).compactMap { $0["name"] as? String }.joined(separator: ",")
+        let txt = { (v: Any?) -> String in v.map { "\($0)" } ?? "" }
+        let struktur = "\(engine)|\(fremd)|" + jobs.map { j in [j["id"], j["status"], j["title"], j["original"], j["fav"], j["titel"]].map(txt).joined(separator: "~") }.joined(separator: ";")
+        let gpu = d["gpu"] as? [String: Any]
+        let werte = jobs.map { j in "\(Int(((j["progress"] as? Double) ?? 0) * 50))\(txt(j["stage"]))" }.joined(separator: ";") +
+            "|\(Int(((gpu?["util"] as? Double) ?? 0) / 10))"
+        return (struktur, werte)
+    }
     private var wachZeit = Date.distantPast
 
     func aktualisieren() async {
@@ -235,9 +251,19 @@ final class Studio: ObservableObject {
         do {
             let roh = try await c.roh("/api/state?schlank=1")             // 📶 nur, was die App braucht
             let s = try JSONDecoder().decode(StudioStand.self, from: roh)
-            withAnimation(.snappy(duration: 0.35)) { stand = s }             // ✨ neue/fertige Aufträge gleiten statt springen
+            // 🧘 11.11.2026 (Nutzer: »Stimme beim Helfer nicht änderbar, scrollt automatisch hoch – auch bei anderen Dropdowns«):
+            // vorher wurde bis zu 2×/s IMMER (animiert) neu gesetzt – schon wegen der GPU-Auslastung. Das baute jede Ansicht neu,
+            // schloss offene Menüs und ließ Formulare springen. Jetzt: nur bei echten Änderungen, Fortschritt/Auslastung gedrosselt.
+            let (struktur, werte) = Self.signatur(roh)
+            if struktur != letzteStruktur {
+                letzteStruktur = struktur; letzteWerte = werte; letzterWertStand = Date()
+                withAnimation(.snappy(duration: 0.35)) { stand = s }         // ✨ neue/fertige Aufträge gleiten statt springen
+            } else if werte != letzteWerte && Date().timeIntervalSince(letzterWertStand) > 3 {
+                letzteWerte = werte; letzterWertStand = Date()
+                stand = s                                                    // nur Zahlen (Fortschritt, Auslastung): ohne Animation, höchstens alle 3 s
+            }
             try? roh.write(to: Self.ablage("stand.json"), options: .atomic)
-            erreichbar = true
+            if !erreichbar { erreichbar = true }
             Benachrichtigungen.vergleichen(s)
             widgetAuffrischen(s)
             LiveAktivitaeten.abgleichen(s, client: c)
