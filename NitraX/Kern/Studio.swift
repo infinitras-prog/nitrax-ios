@@ -64,11 +64,14 @@ struct Feld: Decodable, Identifiable, Hashable {
     var schritt: Double?
     var ki = false
     var nurLtx = false
+    /// 12.11.2026: nur zeigen, wenn Feld `fuerFeld` einen der Werte hat (z. B. »Eigenes Wan-Modell« nur bei Modell = Wan)
+    var fuerFeld: String?
+    var fuerWerte: [String] = []
 
     static func == (a: Feld, b: Feld) -> Bool { a.name == b.name && a.art == b.art && a.label == b.label }
     func hash(into h: inout Hasher) { h.combine(name); h.combine(art) }
 
-    enum K: String, CodingKey { case name, art, label, pflicht, platz, optionen, wert, max, min, schritt, ki, nur_ltx }
+    enum K: String, CodingKey { case name, art, label, pflicht, platz, optionen, wert, max, min, schritt, ki, nur_ltx, fuer }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: K.self)
         func w<T: Decodable>(_ t: T.Type, _ k: K) -> T? { (try? c.decodeIfPresent(T.self, forKey: k)) ?? nil }
@@ -83,6 +86,10 @@ struct Feld: Decodable, Identifiable, Hashable {
         schritt = w(JSONWert.self, .schritt)?.zahl
         ki = w(JSONWert.self, .ki)?.wahr ?? false
         nurLtx = w(JSONWert.self, .nur_ltx)?.wahr ?? false
+        if let f = w(JSONWert.self, .fuer) {
+            fuerFeld = f["feld"]?.text
+            fuerWerte = (f["werte"]?.liste ?? []).compactMap { $0.text }
+        }
         optionen = (w([JSONWert].self, .optionen) ?? []).compactMap { o in
             guard let l = o.liste, let k = l.first else { return nil }
             return (k, l.count > 1 ? (l[1].text ?? k.text ?? "") : (k.text ?? ""))

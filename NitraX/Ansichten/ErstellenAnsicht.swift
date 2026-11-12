@@ -157,7 +157,7 @@ struct WorkflowFormular: View {
                     .font(.footnote)
                 }
             }
-            ForEach(workflow.felder) { f in
+            ForEach(workflow.felder.filter { sichtbar($0) }) { f in
                 Section {
                     FeldEditor(feld: f, workflow: workflow, wert: Binding(get: { werte[f.name] }, set: { werte[f.name] = $0 }), alle: werte)
                         .listRowBackground(tutFeld == f.name ? Farbe.akzent.opacity(0.22) : nil)
@@ -280,13 +280,21 @@ struct WorkflowFormular: View {
         let gemerkt = Gemeinsam.defaults.dictionary(forKey: "formular-\(workflow.id)") as? [String: Data] ?? [:]
         for f in workflow.felder where werte[f.name] == nil {
             if let d = gemerkt[f.name], let w = try? JSONDecoder().decode(JSONWert.self, from: d),
-               ["wahl", "schalter", "zahl", "stimme", "bildmodell"].contains(f.art) {
+               ["wahl", "schalter", "zahl", "stimme", "bildmodell"].contains(f.art),
+               !f.name.hasPrefix("eigen_") {                        // 🎬 eigenes Modell: Wahl kommt vom PC (geteilt)
                 werte[f.name] = w                                   // Einstellungen vom letzten Mal (nicht Texte/Medien)
             } else if let w = f.wert {
                 werte[f.name] = w
             }
         }
         for (k, v) in vorbelegung { werte[k] = v }          // z. B. »▶ Animieren« aus einem fertigen Bild
+    }
+
+    /// 🎬 Feld mit »fuer«: nur zeigen, wenn das andere Feld (z. B. Modell) passt
+    private func sichtbar(_ f: Feld) -> Bool {
+        guard let ziel = f.fuerFeld, !f.fuerWerte.isEmpty else { return true }
+        let wert = werte[ziel]?.text ?? workflow.felder.first { $0.name == ziel }?.wert?.text ?? ""
+        return f.fuerWerte.contains(wert)
     }
 
     private func merken() {
