@@ -28,6 +28,7 @@ struct ErstellenAnsicht: View {
                         .karte()
                     }
                     .buttonStyle(.plain)
+                    AbsichtKarte()                                           // ✨ ein Satz -> fertig vorbereiteter Workflow
                     FotoStartKarte()                                         // 📷 aufnehmen, zuschneiden, Workflow wählen
                     VorlagenLeiste()
                     FavoritenVorlagen()                                      // ❤ eigene Lieblingsergebnisse als Vorlage
