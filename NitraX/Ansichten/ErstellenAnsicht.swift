@@ -157,7 +157,7 @@ struct WorkflowFormular: View {
                     .font(.footnote)
                 }
             }
-            ForEach(workflow.felder.filter { sichtbar($0) }) { f in
+            ForEach(workflow.felder.filter { sichtbar($0) && $0.gruppe == nil }) { f in
                 Section {
                     FeldEditor(feld: f, workflow: workflow, wert: Binding(get: { werte[f.name] }, set: { werte[f.name] = $0 }), alle: werte)
                         .listRowBackground(tutFeld == f.name ? Farbe.akzent.opacity(0.22) : nil)
@@ -165,6 +165,23 @@ struct WorkflowFormular: View {
                     if f.art != "schalter" { Text(f.label + (f.pflicht ? " *" : "")) }
                 }
                 .id(f.name)
+            }
+            // ⚙︎ 13.11.2026: Profi-Einstellungen (Schritte, CFG, Sampler, VAE, Hires, Detailer, Seed …) eingeklappt
+            if !profiFelder.isEmpty {
+                Section {
+                    DisclosureGroup(isExpanded: $profiOffen) {
+                        ForEach(profiFelder) { f in
+                            VStack(alignment: .leading, spacing: 6) {
+                                if f.art != "schalter" { Text(f.label).font(.caption).foregroundStyle(.secondary) }
+                                FeldEditor(feld: f, workflow: workflow, wert: Binding(get: { werte[f.name] }, set: { werte[f.name] = $0 }), alle: werte)
+                            }
+                            .padding(.vertical, 4)
+                            .id(f.name)
+                        }
+                    } label: {
+                        Label("Profi-Einstellungen (" + String(profiFelder.count) + ")", systemImage: "slider.horizontal.3")
+                    }
+                }
             }
             Section {
                 Stepper(value: $varianten, in: 1...4) {
@@ -296,6 +313,9 @@ struct WorkflowFormular: View {
         let wert = werte[ziel]?.text ?? workflow.felder.first { $0.name == ziel }?.wert?.text ?? ""
         return f.fuerWerte.contains(wert)
     }
+
+    @State private var profiOffen = false
+    private var profiFelder: [Feld] { workflow.felder.filter { sichtbar($0) && $0.gruppe == "profi" } }
 
     private func merken() {
         var m: [String: Data] = [:]
