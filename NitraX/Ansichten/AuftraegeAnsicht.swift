@@ -183,6 +183,12 @@ struct AuftragDetail: View {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack { StatusPunkt(a: a); Text(a.artName).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
                     Text(a.titel).font(.title3.bold())
+                    if !a.regie.isEmpty || !a.eigeneModelle.isEmpty {
+                        Text([a.regie.isEmpty ? nil : "🎬 Regie: " + a.regie,
+                              a.eigeneModelle.first.map { "Modell: " + (($0.split(separator: "\\").last.map(String.init) ?? $0).replacingOccurrences(of: ".safetensors", with: "")) }]
+                            .compactMap { $0 }.joined(separator: " · "))
+                            .font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                    }
                     Text(standText(a)).font(.subheadline).foregroundStyle(a.gescheitert && !a.fortsetzbar ? Farbe.fehler : .secondary)
                     if a.laeuft { Fortschrittsbalken(wert: a.progress) }
                     if a.clipsGesamt > 0 {

@@ -40,6 +40,7 @@ struct FeldEditor: View {
     @State private var fehler: String?
     @State private var kiLaeuft: String?          // "vorschlag" / "verbessern"
     @State private var kiVorher: String?          // ↩ zurück zum eigenen Text
+    @State private var deLaeuft = false           // 🇩🇪 Übersetzung läuft
 
     var body: some View {
         Group {
@@ -315,9 +316,27 @@ struct FeldEditor: View {
                 if let v = kiVorher {
                     Button { wert = .text(v); kiVorher = nil } label: { Label("Zurück", systemImage: "arrow.uturn.backward") }
                 }
+                Button {                                                   // 🇩🇪 13.11.2026: was steht im englischen Prompt?
+                    Task { await deutschZeigen() }
+                } label: {
+                    if deLaeuft { ProgressView().controlSize(.small) } else { Text("DE") }
+                }
+                .disabled(deLaeuft || (wert?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines).count < 12)
             }
             .buttonStyle(.bordered).font(.footnote)
         }
+    }
+
+    private func deutschZeigen() async {
+        guard let c = studio.client else { return }
+        let text = (wert?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        deLaeuft = true
+        defer { deLaeuft = false }
+        do {
+            let r = try await c.post("/api/prompt/deutsch", ["text": text], zeit: 120)
+            if let t = r["text"]?.text { fehler = "🇩🇪 Das steht im Prompt:\n\n" + t }
+        } catch { fehler = "Übersetzen: " + error.localizedDescription }
     }
 
     private func kiKnopf(_ titel: String, symbol: String, modus: String) -> some View {

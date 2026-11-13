@@ -37,12 +37,14 @@ struct Auftrag: Decodable, Identifiable, Hashable {
     var reihe: Double?                // Platz in der Warteschlange (kleiner = früher)
     var projekt: String?              // 📁 Projekt-Mappe
     var veroeffentlicht: [JSONWert] = []   // 📤 plattformfertige Fassungen
+    var regie = ""                    // 🎬 welche Regie die Prompts geplant hat (13.11.2026)
+    var eigeneModelle: [String] = []  // 🎬 eigene Modelle, mit denen gerechnet wurde
 
     enum K: String, CodingKey {
         case id, kind, status, progress, stage, eta, elapsed, original, image, bilder, video, song_input, created, started, finished
         case error, fehler_klar, clips, probe_halt, total_seconds, fav
         case again, maximal, vor_maximal, realismus, vor_realismus, lob
-        case ki_stichworte, handy_vorlage, halt_hand, order, projekt, veroeffentlicht
+        case ki_stichworte, handy_vorlage, halt_hand, order, projekt, veroeffentlicht, regie, eigene_modelle
     }
 
     init(from decoder: Decoder) throws {
@@ -86,6 +88,8 @@ struct Auftrag: Decodable, Identifiable, Hashable {
         reihe = w(Double.self, .order)
         projekt = w(String.self, .projekt)
         veroeffentlicht = w([JSONWert].self, .veroeffentlicht) ?? []
+        regie = w(String.self, .regie) ?? ""
+        eigeneModelle = w([String].self, .eigene_modelle) ?? []
     }
 
     /// passt zur Suche (Titel, Art, Bildinhalt) - jedes Wort muss irgendwo vorkommen

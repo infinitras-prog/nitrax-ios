@@ -157,12 +157,17 @@ struct WorkflowFormular: View {
                     .font(.footnote)
                 }
             }
-            ForEach(workflow.felder.filter { sichtbar($0) && $0.gruppe == nil }) { f in
+            ForEach(hauptFelder) { f in
                 Section {
                     FeldEditor(feld: f, workflow: workflow, wert: Binding(get: { werte[f.name] }, set: { werte[f.name] = $0 }), alle: werte)
                         .listRowBackground(tutFeld == f.name ? Farbe.akzent.opacity(0.22) : nil)
                 } header: {
-                    if f.art != "schalter" { Text(f.label + (f.pflicht ? " *" : "")) }
+                    VStack(alignment: .leading, spacing: 6) {
+                        if let titel = abschnittTitel(f) {                 // 🗂 neuer Abschnitt beginnt
+                            Text(titel).font(.headline).foregroundStyle(Farbe.akzent).textCase(nil).padding(.top, 6)
+                        }
+                        if f.art != "schalter" { Text(f.label + (f.pflicht ? " *" : "")) }
+                    }
                 }
                 .id(f.name)
             }
@@ -192,6 +197,14 @@ struct WorkflowFormular: View {
                 if varianten > 1 { Text("Gleiche Eingaben, jedes Mal ein anderer Zufall. Die Rechenzeit vervielfacht sich.") }
             }
             Section {
+                if geaendert > 0 {                                         // 🧾 13.11.2026: Überblick vor dem Start
+                    HStack {
+                        Label(geaendert == 1 ? "1 Einstellung geändert" : String(geaendert) + " Einstellungen geändert", systemImage: "slider.horizontal.3")
+                            .font(.footnote).foregroundStyle(.secondary)
+                        Spacer()
+                        Button("Zurücksetzen") { zuruecksetzen() }.font(.footnote)
+                    }
+                }
                 SchaetzungZeile(wf: workflow.id, laenge: ["laenge", "sekunden", "dauer"].lazy.compactMap { werte[$0]?.zahl }.first)   // ⏱
                 Button {
                     Task { await starten() }
@@ -256,6 +269,7 @@ struct WorkflowFormular: View {
             }
         }
         .scrollDismissesKeyboard(.interactively)
+        .searchable(text: $suche, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Einstellung suchen")
     }
 
     /// »Bitte warten …« mit dem, was gerade passiert
@@ -315,7 +329,37 @@ struct WorkflowFormular: View {
     }
 
     @State private var profiOffen = false
-    private var profiFelder: [Feld] { workflow.felder.filter { sichtbar($0) && $0.gruppe == "profi" } }
+    @State private var suche = ""
+    private var profiFelder: [Feld] { workflow.felder.filter { sichtbar($0) && $0.gruppe == "profi" && passtZurSuche($0) } }
+    private var hauptFelder: [Feld] { workflow.felder.filter { sichtbar($0) && $0.gruppe == nil && passtZurSuche($0) } }
+
+    /// 🔎 Einstellung suchen (Beschriftung oder Abschnitt)
+    private func passtZurSuche(_ f: Feld) -> Bool {
+        let s = suche.trimmingCharacters(in: .whitespaces).lowercased()
+        if s.isEmpty { return true }
+        return f.label.lowercased().contains(s) || (f.abschnitt ?? "").lowercased().contains(s)
+    }
+
+    /// 🗂 Überschrift, wenn mit diesem Feld ein neuer Abschnitt beginnt
+    private func abschnittTitel(_ f: Feld) -> String? {
+        guard let a = f.abschnitt, !a.isEmpty else { return nil }
+        let liste = hauptFelder
+        guard let i = liste.firstIndex(where: { $0.name == f.name }) else { return nil }
+        if i == 0 { return a }
+        return liste[i - 1].abschnitt == a ? nil : a
+    }
+
+    /// 🧾 Einstellungen, die vom Standard abweichen (ohne Texte und Medien)
+    private var geaenderteFelder: [Feld] {
+        workflow.felder.filter { f in
+            guard ["wahl", "schalter", "zahl"].contains(f.art), let std = f.wert, let jetzt = werte[f.name] else { return false }
+            return std != jetzt
+        }
+    }
+    private var geaendert: Int { geaenderteFelder.count }
+    private func zuruecksetzen() {
+        for f in geaenderteFelder { if let std = f.wert { werte[f.name] = std } }
+    }
 
     private func merken() {
         var m: [String: Data] = [:]

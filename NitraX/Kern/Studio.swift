@@ -69,11 +69,13 @@ struct Feld: Decodable, Identifiable, Hashable {
     var fuerWerte: [String] = []
     /// 13.11.2026: »profi« = im aufklappbaren Bereich »Profi-Einstellungen«
     var gruppe: String?
+    /// 13.11.2026: Überschrift des Abschnitts (Inhalt, Modell & Format, Ton & Stimme, Feinschliff, Danach)
+    var abschnitt: String?
 
     static func == (a: Feld, b: Feld) -> Bool { a.name == b.name && a.art == b.art && a.label == b.label }
     func hash(into h: inout Hasher) { h.combine(name); h.combine(art) }
 
-    enum K: String, CodingKey { case name, art, label, pflicht, platz, optionen, wert, max, min, schritt, ki, nur_ltx, fuer, gruppe }
+    enum K: String, CodingKey { case name, art, label, pflicht, platz, optionen, wert, max, min, schritt, ki, nur_ltx, fuer, gruppe, abschnitt }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: K.self)
         func w<T: Decodable>(_ t: T.Type, _ k: K) -> T? { (try? c.decodeIfPresent(T.self, forKey: k)) ?? nil }
@@ -89,6 +91,7 @@ struct Feld: Decodable, Identifiable, Hashable {
         ki = w(JSONWert.self, .ki)?.wahr ?? false
         nurLtx = w(JSONWert.self, .nur_ltx)?.wahr ?? false
         gruppe = w(String.self, .gruppe)
+        abschnitt = w(String.self, .abschnitt)
         if let f = w(JSONWert.self, .fuer) {
             fuerFeld = f["feld"]?.text
             fuerWerte = (f["werte"]?.liste ?? []).compactMap { $0.text }
